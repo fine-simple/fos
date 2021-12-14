@@ -1,0 +1,14 @@
+# ignore all
+*
+
+# Except these folders
+!boot/
+!inc/
+!kern/
+!lib/
+!user/
+
+# Except these files
+!.gitignore
+!*/*.c
+!*/*.h
