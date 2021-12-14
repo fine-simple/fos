@@ -43,7 +43,7 @@ int read_disk_page(uint32 dfn, void* va)
 
 
 int write_disk_page(uint32 dfn, void* va)
-{ 
+{
 	//write disk at wanted frame
 	uint32 df_start_sector = PAGE_FILE_START_SECTOR+dfn*SECTOR_PER_PAGE;
 

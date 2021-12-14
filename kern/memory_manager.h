@@ -159,3 +159,5 @@ inline void clear_frames_storage(uint32* frames_storage);
 //2016
 #define CHECK_IF_KERNEL_ADDRESS(virtual_address) ( (uint32)virtual_address >= (uint32)USER_TOP && (uint32)virtual_address <= (uint32)0xFFFFFFFF)
 #endif /* !FOS_KERN_MEM_MAN_H */
+
+

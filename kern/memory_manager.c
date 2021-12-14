@@ -766,13 +766,28 @@ int loadtime_map_frame(uint32 *ptr_page_directory, struct Frame_Info *ptr_frame_
 
 void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-	//TODO: [PROJECT 2021 - [2] User Heap] allocateMem() [Kernel Side]
-	// Write your code here, remove the panic and write your code
-	panic("allocateMem() is not implemented yet...!!");
 
-	//This function should allocate ALL pages of the required range in the PAGE FILE
-	//and allocate NOTHING in the main memory
+	//TODO: [PROJECT 2021 - [2] User Heap] allocateMem() [Kernel Side]
+
+	// Assuming "size" is in bytes
+	int number_of_frames = ROUNDUP(size, PAGE_SIZE) / 1024 / 4;
+
+	uint32 current_virtual_address = virtual_address;
+
+	for (int i = 0; i < number_of_frames; i++)
+	{
+		int PAGE_FILE_STATUS = pf_add_env_page(e, current_virtual_address, 0);
+
+		if (PAGE_FILE_STATUS == E_NO_PAGE_FILE_SPACE)
+		{
+			panic("sys_malloc: NO PAGE FILE SPACE.\n");
+		}
+
+		current_virtual_address += PAGE_SIZE;
+	}
 }
+
+
 
 
 // [2] freeMem
