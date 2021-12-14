@@ -476,18 +476,100 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 
 //Handle the page fault
 
+//// HELPERS ///
+void* findInSecondChance(struct Env* e, uint32 va);
+void addElementToLists(struct Env* e, uint32 va);
+void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element);
+bool workingSetIsEmpty(struct Env* e);
+bool activeListIsFull(struct Env* e);
+void* getVictimElement(struct Env* e);
+void moveActiveListElementToSecondList(struct Env* e);
+////////
+
+
+
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
 	//TODO: [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
-	panic("page_fault_handler() is not implemented yet...!!");
+	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 
-	//refer to the project presentation and documentation for details
+	//   DEBUG
+//	cprintf("STACK PAGES RANGE => between %p , %p\n\n", USTACKBOTTOM ,USTACKTOP);
+//	cprintf("Active List max size : %d, Second Chance list max size: %d\n", curenv->ActiveListSize, curenv->SecondListSize);
+//	cprintf("fault address : %x\nENV_ID : %d\n", fault_va, curenv->env_id);
+//	if ((pt_get_page_permissions(curenv, fault_va) & (PERM_PRESENT | PERM_WRITEABLE)) == (PERM_PRESENT | PERM_WRITEABLE))
+//			cprintf("Present\n");
+//		else
+//			cprintf("not Present\n");
+//	print_page_working_set_or_LRUlists(curenv);
+//	char tmp[1024];
+	//////////////-
 
-	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
+	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
 
-	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
 
+
+	if (element != NULL)// if found in second chance list
+	{
+		//cprintf("case found in SC\n");
+		if (activeListIsFull(curenv))
+		{
+			moveActiveListElementToSecondList(curenv);
+		}
+		LIST_REMOVE(&(curenv->SecondList), element);
+		LIST_INSERT_HEAD(&(curenv->ActiveList), element);
+	}
+	else
+	{
+		//cprintf("case not found in SC\n");
+
+		struct Frame_Info *ptr_frame_info;
+
+		if (allocate_frame(&ptr_frame_info) != 0)
+			panic("Failed To Allocate Frame\n");
+
+
+		map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_USER | PERM_WRITEABLE);
+
+		int isPageReadSuccess = pf_read_env_page(curenv, (uint32*) fault_va);
+		//cprintf("is Page Read Success: %d\n", isPageReadSuccess);
+		if (isPageReadSuccess == 0){
+			addElementToLists(curenv,fault_va);
+		}
+		else
+		{
+			bool isStackPage = (fault_va>=USTACKBOTTOM && fault_va<=USTACKTOP);
+			//cprintf("isStackPage: %d\n", isStackPage);
+			if(isStackPage)
+			{
+				int err = pf_add_empty_env_page(curenv, fault_va, 1);
+
+				if(err!=0)
+					panic("Failed to add Environment page");
+				else
+					addElementToLists(curenv,fault_va);
+			}
+			else
+				panic("Page not found in Page File");
+		}
+	}
+
+	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
+
+//	if (pt_get_page_permissions(curenv, fault_va) & (PERM_PRESENT | PERM_WRITEABLE))
+//		cprintf("Present Set Successfuly\n");
+//	else
+//		cprintf("Present Set FAILED\n");
+//
+//	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
+//
+//	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
+//
+//	cprintf("after addElementsToLists: \n");
+//	print_page_working_set_or_LRUlists(curenv);
+//	//readline("continue?",tmp);
+//	cprintf("/////////////////////\n");
 }
 
 
@@ -496,3 +578,108 @@ void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 	panic("this function is not required...!!");
 }
 
+void* findInSecondChance(struct Env* e, uint32 va)
+{
+	struct WorkingSetElement *currentElement;
+	LIST_FOREACH(currentElement,&(e->SecondList))
+	{
+		if (currentElement->virtual_address == va)
+		{
+			return currentElement;
+		}
+	}
+	return NULL;
+}
+
+void addElementToLists(struct Env* e, uint32 va)
+{
+
+	struct WorkingSetElement *element;
+
+	if(!workingSetIsEmpty(e))
+	{
+		element = LIST_LAST(&(e->PageWorkingSetList));
+		LIST_REMOVE(&(e->PageWorkingSetList), element);
+
+		element->virtual_address = va;
+		if(activeListIsFull(e))
+		{
+			// second list is guaranteed to have empty space if ws is not empty and active is full
+			moveActiveListElementToSecondList(e);
+		}
+		LIST_INSERT_HEAD(&(e->ActiveList), element);
+
+	}
+	else //must take victim
+	{
+		// this sequence is guaranteed to happen since the WS list is empty
+		// (active and second lists are full)
+		element = getVictimElement(e);
+
+		element->virtual_address = va;
+
+		moveActiveListElementToSecondList(e);
+		LIST_INSERT_HEAD(&(e->ActiveList), element);
+	}
+
+
+}
+
+void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element)
+{
+	uint32 va = element->virtual_address;
+	uint32 perms = pt_get_page_permissions(e, va);
+	bool modified = (PERM_MODIFIED&perms);
+	if(!modified)
+	{
+		unmap_frame(e->env_page_directory, (uint32*) va);
+		return;
+	}
+	uint32 *ptr_page_table;
+	struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void*)va, &ptr_page_table);
+	int success = pf_update_env_page(e, (void *)va, ptr_frame_info);
+	if(success != 0)
+		panic("Page to be updated doesn't exist in Page File");
+
+	unmap_frame(e->env_page_directory, (uint32*) va);
+}
+
+bool workingSetIsEmpty(struct Env* e)
+{
+	return LIST_SIZE(&(e->PageWorkingSetList)) == 0;
+}
+
+bool activeListIsFull(struct Env* e)
+{
+	return LIST_SIZE(&(e->ActiveList)) == e->ActiveListSize;
+}
+
+bool secondListIsFull(struct Env* e)
+{
+	return LIST_SIZE(&(e->SecondList)) == e->SecondListSize;
+}
+
+// Only removes element from second list, doesn't update active list
+void* getVictimElement(struct Env* e)
+{
+	struct WorkingSetElement *victimElement = LIST_LAST(&(e->SecondList));
+
+	saveWsElementToPageFile(e, victimElement);
+
+	LIST_REMOVE(&(e->SecondList), victimElement);
+
+	pt_set_page_permissions(curenv, victimElement->virtual_address, 0, PERM_PRESENT | PERM_WRITEABLE);
+
+	return victimElement;
+}
+
+// moves last element in active list to second list head
+void moveActiveListElementToSecondList(struct Env* e)
+{
+	struct WorkingSetElement *activeListTail = LIST_LAST(&(e->ActiveList));
+	LIST_REMOVE(&(e->ActiveList), activeListTail);
+	LIST_INSERT_HEAD(&(e->SecondList), activeListTail);
+	pt_set_page_permissions(e, activeListTail->virtual_address, 0, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+
+	return;
+}
