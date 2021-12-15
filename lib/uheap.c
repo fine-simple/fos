@@ -1,7 +1,7 @@
 #include <inc/lib.h>
 
 // malloc()
-//	This function use FIRST FIT strategy to allocate space in heap
+//	This function use BEST FIT strategy to allocate space in heap
 //  with the given size and return void pointer to the start of the allocated space
 
 //	To do this, we need to switch to the kernel, allocate the required space
@@ -15,18 +15,54 @@
 //==================================================================================//
 //============================ REQUIRED FUNCTIONS ==================================//
 //==================================================================================//
+#define MAX_NUM_OF_PAGES ((USER_HEAP_MAX - USER_HEAP_START) / PAGE_SIZE)
+int pages_allocated[MAX_NUM_OF_PAGES];
+
 void* malloc(uint32 size)
 {
-	//TODO: [PROJECT 2021 - [2] User Heap] malloc() [User Side]
-	// Write your code here, remove the panic and write your code
-	panic("malloc() is not implemented yet...!!");
+	size = ROUNDUP(size, PAGE_SIZE);
+	int num_of_pages = size / PAGE_SIZE;
+	// cprintf("malloc: num_of_pages = %d\n", num_of_pages);
+	// BEST FIT strategy
+	int min_fit_index = -1;
+	int min_fit_pages = MAX_NUM_OF_PAGES;
+	int current_free_pages = 0;
+	
+	for (int i = 0; i < MAX_NUM_OF_PAGES; i++)
+	{
+		if(pages_allocated[i] != 0)
+		{
+			if(current_free_pages >= num_of_pages && current_free_pages < min_fit_pages )
+			{
+				min_fit_index = i;
+				min_fit_pages = current_free_pages;
+			}
+			i+= pages_allocated[i];
+			current_free_pages=0;
+		}
+		else
+			current_free_pages++;
+	}
 
-	//This function should find the space of the required range
-	//using the BEST FIT strategy
+	if(current_free_pages == MAX_NUM_OF_PAGES)
+	{
+		min_fit_index = 0;
+	}
+	
+	uint32* va = (uint32*)USER_HEAP_START + min_fit_index * PAGE_SIZE;
+	// cprintf("malloc: va = %x\n", va);
+	
+	if(min_fit_index == -1)
+		return NULL;
+	
+	// allocate the pages
+	pages_allocated[min_fit_index] = num_of_pages;
 
-	//refer to the project presentation and documentation for details
-
-	return NULL;
+	for (int i = 0; i < num_of_pages; i++)
+	{
+		sys_allocateMem((uint32)va, size);
+	}
+	return va;
 }
 
 // free():
