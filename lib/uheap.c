@@ -23,6 +23,7 @@ void* malloc(uint32 size)
 	size = ROUNDUP(size, PAGE_SIZE);
 	int num_of_pages = size / PAGE_SIZE;
 	// cprintf("malloc: num_of_pages = %d\n", num_of_pages);
+	
 	// BEST FIT strategy
 	int min_fit_index = -1;
 	int min_fit_pages = MAX_NUM_OF_PAGES;
@@ -37,32 +38,28 @@ void* malloc(uint32 size)
 				min_fit_index = i;
 				min_fit_pages = current_free_pages;
 			}
-			i+= pages_allocated[i];
+			i+= pages_allocated[i] - 1;
 			current_free_pages=0;
 		}
 		else
 			current_free_pages++;
 	}
-
-	if(current_free_pages == MAX_NUM_OF_PAGES)
-	{
-		min_fit_index = 0;
-	}
 	
-	uint32* va = (uint32*)USER_HEAP_START + min_fit_index * PAGE_SIZE;
-	// cprintf("malloc: va = %x\n", va);
+	if(current_free_pages >= num_of_pages && current_free_pages <= min_fit_pages)
+	{
+		min_fit_index = MAX_NUM_OF_PAGES - current_free_pages;
+	}
+
+	uint32 va = USER_HEAP_START + min_fit_index * PAGE_SIZE;
 	
 	if(min_fit_index == -1)
 		return NULL;
 	
 	// allocate the pages
 	pages_allocated[min_fit_index] = num_of_pages;
+	sys_allocateMem(va, size);
 
-	for (int i = 0; i < num_of_pages; i++)
-	{
-		sys_allocateMem((uint32)va, size);
-	}
-	return va;
+	return (uint32*)va;
 }
 
 // free():
@@ -77,13 +74,16 @@ void* malloc(uint32 size)
 
 void free(void* virtual_address)
 {
-	//TODO: [PROJECT 2021 - [2] User Heap] free() [User Side]
-	// Write your code here, remove the panic and write your code
-	panic("free() is not implemented yet...!!");
+	int index = ((uint32)virtual_address - USER_HEAP_START) / PAGE_SIZE;
+	int num_of_pages = pages_allocated[index];
+	
+	for (int i = 0; i < num_of_pages; i++)
+	{
+		
+		sys_freeMem((uint32)virtual_address, pages_allocated[index] * PAGE_SIZE);
+	}
 
-	//you should get the size of the given allocation using its address
-
-	//refer to the project presentation and documentation for details
+	pages_allocated[index] = 0;
 }
 
 //==================================================================================//
