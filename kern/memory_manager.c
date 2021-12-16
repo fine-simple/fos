@@ -420,14 +420,14 @@ int allocate_frame(struct Frame_Info **ptr_frame_info)
 {
 	*ptr_frame_info = LIST_FIRST(&free_frame_list);
 	int c = 0;
-	if (*ptr_frame_info == NULL)
+	if (ptr_frame_info == NULL)
 	{
 		//TODO: [PROJECT 2021 - BONUS2] Free RAM when it's FULL
 		panic("ERROR: Kernel run out of memory... allocate_frame cannot find a free frame.\n");
 		// When allocating new frame, if there's no free frame, then you should:
 		//	1-	If any process has exited (those with status ENV_EXIT), then remove one or more of these exited processes from the main memory
 		//	2-	otherwise, free at least 1 frame from the second list of the working set of EACH process
-
+		
 	}
 
 	LIST_REMOVE(&free_frame_list,*ptr_frame_info);
@@ -776,7 +776,7 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 
 	for (int i = 0; i < number_of_frames; i++)
 	{
-		int PAGE_FILE_STATUS = pf_add_env_page(e, current_virtual_address, 0);
+		int PAGE_FILE_STATUS = pf_add_empty_env_page(e, current_virtual_address, 0);
 
 		if (PAGE_FILE_STATUS == E_NO_PAGE_FILE_SPACE)
 		{
