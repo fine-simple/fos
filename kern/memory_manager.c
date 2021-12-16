@@ -792,17 +792,58 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 
 // [2] freeMem
 
+void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, struct WS_List* list)
+{
+	struct WorkingSetElement* element;
+	LIST_FOREACH(element, list)
+	{ 
+		
+		if(element->virtual_address >= startAddress && element->virtual_address < endAddress)
+		{
+			struct Frame_Info* fi = NULL;
+			uint32* pt = NULL;
+			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+			free_frame(fi);
+			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
+			LIST_REMOVE(list, element);
+			//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
+			for(int i = 0; i < 1024; i++)
+			{
+				if(pt[i] != 0)
+				{
+					break;
+				}
+				else if(i == 1023)
+				{
+					uint32 dirIndex = PDX(element->virtual_address);
+					free_frame(to_frame_info((e->env_page_directory[dirIndex] & 0xFFFFF000)));
+					e->env_page_directory[dirIndex] = 0;
+				}
+			}
+			
+		}
+	}
+}
+
 void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 
 	//TODO: [PROJECT 2021 - [2] User Heap] freeMem() [Kernel Side]
-	// Write your code here, remove the panic and write your code
-	panic("freeMem() is not implemented yet...!!");
-
 	//This function should:
 	//1. Free ALL pages of the given range from the Page File
 	//2. Free ONLY pages that are resident in the working set from the memory
 	//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
+	uint32 startAddress = ROUNDDOWN(virtual_address, PAGE_SIZE);
+	uint32 endAddress = ROUNDUP(virtual_address + size, PAGE_SIZE);
+	uint32 currAddress = startAddress;
+	for(; currAddress < endAddress; currAddress+=PAGE_SIZE)
+	{
+		//1. Free ALL pages of the given range from the Page File
+		pf_remove_env_page(e, currAddress);
+	}
+	//2. Free ONLY pages that are resident in the working set from the memory
+	freePagesInList(e, startAddress, endAddress, &e->ActiveList);
+	freePagesInList(e, startAddress, endAddress, &e->SecondList);
 }
 
 void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size)
