@@ -805,6 +805,11 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
 			free_frame(fi);
 			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
+			
+			//probably not needed vv
+			element->empty = 1;
+			element->virtual_address = 0;
+
 			LIST_REMOVE(list, element);
 			//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
 			for(int i = 0; i < 1024; i++)
@@ -818,6 +823,7 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 					uint32 dirIndex = PDX(element->virtual_address);
 					free_frame(to_frame_info((e->env_page_directory[dirIndex] & 0xFFFFF000)));
 					e->env_page_directory[dirIndex] = 0;
+					tlbflush();
 				}
 			}
 			
@@ -844,6 +850,7 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 	//2. Free ONLY pages that are resident in the working set from the memory
 	freePagesInList(e, startAddress, endAddress, &e->ActiveList);
 	freePagesInList(e, startAddress, endAddress, &e->SecondList);
+	tlbflush();
 }
 
 void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size)
