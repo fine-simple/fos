@@ -427,7 +427,7 @@ int allocate_frame(struct Frame_Info **ptr_frame_info)
 		// When allocating new frame, if there's no free frame, then you should:
 		//	1-	If any process has exited (those with status ENV_EXIT), then remove one or more of these exited processes from the main memory
 		//	2-	otherwise, free at least 1 frame from the second list of the working set of EACH process
-		
+
 	}
 
 	LIST_REMOVE(&free_frame_list,*ptr_frame_info);
@@ -789,28 +789,41 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 
 
 
-
 // [2] freeMem
+#define PAUSE char tmp[2];readline("continue?",tmp);
 
-void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, struct WS_List* list)
+//moves second list head element to active list tail and adjusts permissions
+void moveSecondListElementToActive(struct Env *e)
+{
+	struct WorkingSetElement *element = LIST_FIRST(&(e->SecondList));
+	LIST_REMOVE(&(e->SecondList), element);
+	LIST_INSERT_TAIL(&(e->ActiveList), element);
+	pt_set_page_permissions(e, element->virtual_address, PERM_PRESENT | PERM_WRITEABLE | PERM_USER, 0);
+}
+
+
+void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, struct WS_List* list, bool isActive)
 {
 	struct WorkingSetElement* element;
+	int secondListSize = LIST_SIZE(&(e->SecondList));
 	LIST_FOREACH(element, list)
-	{ 
-		
+	{
 		if(element->virtual_address >= startAddress && element->virtual_address < endAddress)
 		{
 			struct Frame_Info* fi = NULL;
 			uint32* pt = NULL;
 			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
-			free_frame(fi);
 			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
-			
-			//probably not needed vv
-			element->empty = 1;
-			element->virtual_address = 0;
+
 
 			LIST_REMOVE(list, element);
+			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
+			if (isActive && secondListSize != 0)
+			{
+				secondListSize--;
+				moveSecondListElementToActive(e);
+			}
+
 			//3. Removes ONLY the empty page tables (i.e. not used) (no pages are mapped in the table)
 			for(int i = 0; i < 1024; i++)
 			{
@@ -826,9 +839,11 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 					tlbflush();
 				}
 			}
-			
+
 		}
 	}
+
+
 }
 
 void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
@@ -842,15 +857,17 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 	uint32 startAddress = ROUNDDOWN(virtual_address, PAGE_SIZE);
 	uint32 endAddress = ROUNDUP(virtual_address + size, PAGE_SIZE);
 	uint32 currAddress = startAddress;
+
 	for(; currAddress < endAddress; currAddress+=PAGE_SIZE)
 	{
 		//1. Free ALL pages of the given range from the Page File
 		pf_remove_env_page(e, currAddress);
 	}
 	//2. Free ONLY pages that are resident in the working set from the memory
-	freePagesInList(e, startAddress, endAddress, &e->ActiveList);
-	freePagesInList(e, startAddress, endAddress, &e->SecondList);
+	freePagesInList(e, startAddress, endAddress, &e->ActiveList, 1);
+	freePagesInList(e, startAddress, endAddress, &e->SecondList, 0);
 	tlbflush();
+
 }
 
 void __freeMem_with_buffering(struct Env* e, uint32 virtual_address, uint32 size)

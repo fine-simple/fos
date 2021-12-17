@@ -486,6 +486,9 @@ void* getVictimElement(struct Env* e);
 void moveActiveListElementToSecondList(struct Env* e);
 ////////
 
+#define PAUSE {char tmp[2];readline("continue?",tmp);}
+#define LOG(text) cprintf(text);
+
 
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
@@ -498,6 +501,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 //	cprintf("STACK PAGES RANGE => between %p , %p\n\n", USTACKBOTTOM ,USTACKTOP);
 //	cprintf("Active List max size : %d, Second Chance list max size: %d\n", curenv->ActiveListSize, curenv->SecondListSize);
 //	cprintf("fault address : %x\nENV_ID : %d\n", fault_va, curenv->env_id);
+	//PAUSE
 //	if ((pt_get_page_permissions(curenv, fault_va) & (PERM_PRESENT | PERM_WRITEABLE)) == (PERM_PRESENT | PERM_WRITEABLE))
 //			cprintf("Present\n");
 //		else
@@ -551,14 +555,17 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 					addElementToLists(curenv,fault_va);
 			}
 			else
+			{
+				print_page_working_set_or_LRUlists(curenv);
 				panic("Page not found in Page File");
+			}
 		}
 	}
 
 	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
 
 //	if (pt_get_page_permissions(curenv, fault_va) & (PERM_PRESENT | PERM_WRITEABLE))
-//		cprintf("Present Set Successfuly\n");
+//		cprintf("Present Set Successfully\n");
 //	else
 //		cprintf("Present Set FAILED\n");
 //
