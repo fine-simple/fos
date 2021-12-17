@@ -825,19 +825,49 @@ void start_env_free(struct Env *e)
 	}
 }
 
+void freeWSPages(struct Env *e ,struct WS_List* list){
+	struct WorkingSetElement* element ;
+	LIST_FOREACH(element, list)
+	{
+		struct Frame_Info* fi = NULL;
+			uint32* pt = NULL;
+			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+			free_frame(fi);
+			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
+			// [2] Free LRU lists
+			LIST_REMOVE(list, element);
+			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
+	}
+}
 void env_free(struct Env *e)
 {
-	__remove_pws_user_pages(e);
+	// __remove_pws_user_pages(e);
 
 	//TODO: [PROJECT 2021 - BONUS1] Exit [env_free()]
 
 	//YOUR CODE STARTS HERE, remove the panic and write your code ----
-	panic("env_free() is not implemented yet...!!");
+	
 
 	// [1] Free the pages in the PAGE working set from the main memory
-	// [2] Free LRU lists
+	
+	// struct WS_List* list = ;
+	freeWSPages(e ,&(e->ActiveList));
+	freeWSPages(e ,&(e->SecondList));
+	tlbflush();
+	
+		
 	// [3] Free all TABLES from the main memory
+	for(int i = 0; i < 1024; i++)
+	{
+		if((e->env_page_directory[i] & 0xFFFFF000) != 0){
+			//FIXME: when the below line is uncommented, it goes into infinite loop
+			// free_frame(to_frame_info((e->env_page_directory[i] & 0xFFFFF000)));
+			e->env_page_directory[i] = 0;
+			// tlbflush();
+		}
+	}
 	// [4] Free the page DIRECTORY from the main memory
+	free_frame(to_frame_info(e->env_cr3));
 
 	//YOUR CODE ENDS HERE --------------------------------------------
 

@@ -33,6 +33,9 @@ void _main(void)
 	//Checking the number of frames after killing the created environments
 	int freeFrames_after = sys_calculate_free_frames() ;
 	int usedDiskPages_after = sys_pf_calculate_allocated_pages() ;
+	//TODO: delete cprints (debugging)
+	cprintf("\n---# of free frames after killing the processes = %d\n", freeFrames_after);
+	cprintf("\n---# of free frames before killing the processes = %d\n",freeFrames_before);
 
 	if((freeFrames_after - freeFrames_before) !=0)
 		panic("env_free() does not work correctly... check it again.") ;
