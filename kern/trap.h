@@ -47,6 +47,7 @@ uint32 isModifiedBufferEnabled();
 
 void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element);
 void* getVictimElement(struct Env* e);
+void print_page_working_set_or_LRUlists(struct Env *e);
 
 
 #endif /* FOS_KERN_TRAP_H */

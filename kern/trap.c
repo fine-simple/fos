@@ -503,8 +503,8 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 //	cprintf("STACK PAGES RANGE => between %p , %p\n\n", USTACKBOTTOM ,USTACKTOP);
 //	cprintf("Active List max size : %d, Second Chance list max size: %d\n", curenv->ActiveListSize, curenv->SecondListSize);
 	LOG("fault address : %x\n", fault_va);
+	LOG("Max second size : %d\n", curenv->SecondListSize)
 	//PAUSE
-
 
 	//////////////-
 
@@ -514,7 +514,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	if (element != NULL)// if found in second chance list
 	{
-		//cprintf("case found in SC\n");
+
 		if (activeListIsFull(curenv))
 		{
 			moveActiveListElementToSecondList(curenv);
@@ -524,7 +524,6 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	}
 	else
 	{
-		//cprintf("case not found in SC\n");
 
 		struct Frame_Info *ptr_frame_info;
 
@@ -534,14 +533,14 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_PRESENT | PERM_USER | PERM_WRITEABLE);
 
 		int isPageReadSuccess = pf_read_env_page(curenv, (uint32*) fault_va);
-		LOG("is Page Read Success: %d\n", isPageReadSuccess);
+		//LOG("is Page Read Success: %d\n", isPageReadSuccess);
 		if (isPageReadSuccess == 0){
 			addElementToLists(curenv,fault_va);
 		}
 		else
 		{
 			bool isStackPage = (fault_va>=USTACKBOTTOM && fault_va<=USTACKTOP);
-			//cprintf("isStackPage: %d\n", isStackPage);
+
 			if(isStackPage)
 			{
 				int err = pf_add_empty_env_page(curenv, fault_va, 1);
@@ -553,7 +552,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 			}
 			else
 			{
-				//print_page_working_set_or_LRUlists(curenv);
+
 				panic("Page not found in Page File");
 			}
 		}
@@ -617,7 +616,8 @@ void addElementToLists(struct Env* e, uint32 va)
 
 		element->virtual_address = va;
 
-		moveActiveListElementToSecondList(e);
+		if (e->SecondListSize != 0)
+			moveActiveListElementToSecondList(e);
 		LIST_INSERT_HEAD(&(e->ActiveList), element);
 	}
 
@@ -662,7 +662,7 @@ bool secondListIsFull(struct Env* e)
 void* getVictimElement(struct Env* e)
 {
 	struct WS_List *list;
-	if (LIST_SIZE(&(e->SecondList)) == 0)
+	if (e->SecondListSize == 0)
 		list = &e->ActiveList;
 	else
 		list = &e->SecondList;
