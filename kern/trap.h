@@ -45,4 +45,8 @@ uint32 isPageReplacmentAlgorithmModifiedCLOCK();
 void enableModifiedBuffer(uint32 enableIt);
 uint32 isModifiedBufferEnabled();
 
+void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element);
+void* getVictimElement(struct Env* e);
+
+
 #endif /* FOS_KERN_TRAP_H */

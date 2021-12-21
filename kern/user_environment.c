@@ -19,6 +19,7 @@
 #include <kern/shared_memory_manager.h>
 #include <kern/semaphore_manager.h>
 
+
 extern int pf_add_env_page(struct Env* ptr_env, uint32 virtual_address, void* ptrDataSrc);
 extern int loadtime_map_frame(uint32 *ptr_page_directory, struct Frame_Info *ptr_frame_info, void *virtual_address, int perm);
 extern void addTableToTableWorkingSet(struct Env *e, uint32 tableAddress);
@@ -832,42 +833,90 @@ void freeWSPages(struct Env *e ,struct WS_List* list){
 		struct Frame_Info* fi = NULL;
 			uint32* pt = NULL;
 			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
-			free_frame(fi);
+			cprintf("WS frame : %x\n", to_physical_address(fi));
+//			if (fi->references != 0)
+//				free_frame(fi);
 			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
 			// [2] Free LRU lists
 			LIST_REMOVE(list, element);
 			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 	}
 }
+char tmp[2];
+#define ENABLE_DEBUG 1
+#define LOG(text, vars) if(ENABLE_DEBUG){cprintf(text, vars);}
+#define PAUSE readline("continue?", tmp);
+
+/*****  PERFORMANCE CATASTROPHY ******/
+bool isInFreeList(struct Frame_Info* frame)
+{
+	struct Frame_Info* tmp;
+	LIST_FOREACH(tmp, &free_frame_list)
+	{
+		if (tmp == frame)
+		{
+			cprintf("FOUND IN FREE FRAME LIST!!! phys addr : %x\n", to_physical_address(tmp));
+			return 1;
+
+		}
+	}
+	return 0;
+}
+
 void env_free(struct Env *e)
 {
-	// __remove_pws_user_pages(e);
+	//__remove_pws_user_pages(e);
 
 	//TODO: [PROJECT 2021 - BONUS1] Exit [env_free()]
 
 	//YOUR CODE STARTS HERE, remove the panic and write your code ----
-	
-
+	LOG("\nEnv ID: %d\n", e->env_id);
+	//print_page_working_set_or_LRUlists(e);
+	PAUSE
 	// [1] Free the pages in the PAGE working set from the main memory
-	
-	// struct WS_List* list = ;
+
 	freeWSPages(e ,&(e->ActiveList));
 	freeWSPages(e ,&(e->SecondList));
-	tlbflush();
-	
-		
+
+	//tlbflush();
+
+
 	// [3] Free all TABLES from the main memory
 	for(int i = 0; i < 1024; i++)
 	{
+
 		if((e->env_page_directory[i] & 0xFFFFF000) != 0){
 			//FIXME: when the below line is uncommented, it goes into infinite loop
-			// free_frame(to_frame_info((e->env_page_directory[i] & 0xFFFFF000)));
+			uint32 phys_addr = (e->env_page_directory[i] & 0xFFFFF000);
+			LOG("Freeing frame with phys addr : %x\n", phys_addr);
+
+			struct Frame_Info* fi = to_frame_info(phys_addr);
+			//LOG("Number of references : %d\n///////\n", fi->references);
+			bool isAlreadyInFree = isInFreeList(fi);
+//			cprintf("Already In frame : %d\n", isAlreadyInFree);
+//			if (isAlreadyInFree)
+//			{
+//				cprintf("Frame : %x\n", phys_addr);
+//
+//			}
+//			PAUSE
+			if (fi->references != 0 && !isAlreadyInFree)
+			{
+				fi->references = 0;
+				free_frame(fi);
+			}
+			//unmap_frame(e->env_page_directory,(void*) e->env_page_directory[i]);
+
 			e->env_page_directory[i] = 0;
-			// tlbflush();
+
 		}
+
 	}
 	// [4] Free the page DIRECTORY from the main memory
+	//LOG("Freeing PD%d\n", 0);
 	free_frame(to_frame_info(e->env_cr3));
+	//LOG("Freed PD%d\n", 0);
+	tlbflush();
 
 	//YOUR CODE ENDS HERE --------------------------------------------
 

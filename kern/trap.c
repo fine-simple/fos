@@ -486,9 +486,11 @@ void* getVictimElement(struct Env* e);
 void moveActiveListElementToSecondList(struct Env* e);
 ////////
 
-#define PAUSE {char tmp[2];readline("continue?",tmp);}
-#define LOG(text) cprintf(text);
-
+char tmp[2];
+#define ENABLE_DEBUG 0
+#define LOG(text, vars) if(ENABLE_DEBUG){cprintf(text, vars);}
+#define LOG_LISTS if(ENABLE_DEBUG){print_page_working_set_or_LRUlists(curenv);}
+#define PAUSE readline("continue?", tmp);
 
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
@@ -500,14 +502,10 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	//   DEBUG
 //	cprintf("STACK PAGES RANGE => between %p , %p\n\n", USTACKBOTTOM ,USTACKTOP);
 //	cprintf("Active List max size : %d, Second Chance list max size: %d\n", curenv->ActiveListSize, curenv->SecondListSize);
-//	cprintf("fault address : %x\nENV_ID : %d\n", fault_va, curenv->env_id);
+	LOG("fault address : %x\n", fault_va);
 	//PAUSE
-//	if ((pt_get_page_permissions(curenv, fault_va) & (PERM_PRESENT | PERM_WRITEABLE)) == (PERM_PRESENT | PERM_WRITEABLE))
-//			cprintf("Present\n");
-//		else
-//			cprintf("not Present\n");
-//	print_page_working_set_or_LRUlists(curenv);
-//	char tmp[1024];
+
+
 	//////////////-
 
 	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
@@ -533,11 +531,10 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		if (allocate_frame(&ptr_frame_info) != 0)
 			panic("Failed To Allocate Frame\n");
 
-
-		map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_USER | PERM_WRITEABLE);
+		map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_PRESENT | PERM_USER | PERM_WRITEABLE);
 
 		int isPageReadSuccess = pf_read_env_page(curenv, (uint32*) fault_va);
-		//cprintf("is Page Read Success: %d\n", isPageReadSuccess);
+		LOG("is Page Read Success: %d\n", isPageReadSuccess);
 		if (isPageReadSuccess == 0){
 			addElementToLists(curenv,fault_va);
 		}
@@ -556,7 +553,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 			}
 			else
 			{
-				print_page_working_set_or_LRUlists(curenv);
+				//print_page_working_set_or_LRUlists(curenv);
 				panic("Page not found in Page File");
 			}
 		}
@@ -564,19 +561,14 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
 
-//	if (pt_get_page_permissions(curenv, fault_va) & (PERM_PRESENT | PERM_WRITEABLE))
-//		cprintf("Present Set Successfully\n");
-//	else
-//		cprintf("Present Set FAILED\n");
-//
+
 //	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
 //
 //	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
 //
 //	cprintf("after addElementsToLists: \n");
 //	print_page_working_set_or_LRUlists(curenv);
-//	//readline("continue?",tmp);
-//	cprintf("/////////////////////\n");
+	LOG("/////////////////////\n%c", tmp[0]);
 }
 
 
@@ -669,13 +661,19 @@ bool secondListIsFull(struct Env* e)
 // Only removes element from second list, doesn't update active list
 void* getVictimElement(struct Env* e)
 {
-	struct WorkingSetElement *victimElement = LIST_LAST(&(e->SecondList));
+	struct WS_List *list;
+	if (LIST_SIZE(&(e->SecondList)) == 0)
+		list = &e->ActiveList;
+	else
+		list = &e->SecondList;
+
+	struct WorkingSetElement *victimElement = LIST_LAST(list);
 
 	saveWsElementToPageFile(e, victimElement);
 
-	LIST_REMOVE(&(e->SecondList), victimElement);
+	LIST_REMOVE(list, victimElement);
 
-	pt_set_page_permissions(curenv, victimElement->virtual_address, 0, PERM_PRESENT | PERM_WRITEABLE);
+	pt_set_page_permissions(curenv, victimElement->virtual_address, 0, PERM_PRESENT);
 
 	return victimElement;
 }
@@ -686,7 +684,7 @@ void moveActiveListElementToSecondList(struct Env* e)
 	struct WorkingSetElement *activeListTail = LIST_LAST(&(e->ActiveList));
 	LIST_REMOVE(&(e->ActiveList), activeListTail);
 	LIST_INSERT_HEAD(&(e->SecondList), activeListTail);
-	pt_set_page_permissions(e, activeListTail->virtual_address, 0, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+	pt_set_page_permissions(e, activeListTail->virtual_address, 0, PERM_PRESENT);
 
 	return;
 }

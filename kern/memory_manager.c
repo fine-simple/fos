@@ -416,6 +416,38 @@ void initialize_frame_info(struct Frame_Info *ptr_frame_info)
 
 extern void env_free(struct Env *e);
 
+//////// HELPERS ////////////
+int MAX_ENVS = 12; //said in the start of fos
+
+// returns true if exited envs found
+bool removeExitedEnvs()
+{
+
+	bool foundExitedEnv = 0;
+	for (int i = 0; i < MAX_ENVS; i++)
+	{
+		if (envs[i].env_status == ENV_EXIT)
+		{
+			foundExitedEnv = 1;
+			env_free(&envs[i]);
+		}
+	}
+	return foundExitedEnv;
+}
+
+void removeVictimFromEachProcess()
+{
+	for (int i = 0; i < MAX_ENVS; i++)
+	{
+		//running processes are ready and blocked status (not sure if new too or not)
+		if (envs[i].env_status == ENV_READY || envs[i].env_status != ENV_BLOCKED)
+		{
+			struct WorkingSetElement *element = getVictimElement(&envs[i]);
+			LIST_INSERT_HEAD(&(envs[i].PageWorkingSetList), element);
+		}
+	}
+}
+
 int allocate_frame(struct Frame_Info **ptr_frame_info)
 {
 	*ptr_frame_info = LIST_FIRST(&free_frame_list);
@@ -423,13 +455,19 @@ int allocate_frame(struct Frame_Info **ptr_frame_info)
 	if (ptr_frame_info == NULL)
 	{
 		//TODO: [PROJECT 2021 - BONUS2] Free RAM when it's FULL
-		panic("ERROR: Kernel run out of memory... allocate_frame cannot find a free frame.\n");
+		//panic("ERROR: Kernel run out of memory... allocate_frame cannot find a free frame.\n");
 		// When allocating new frame, if there's no free frame, then you should:
 		//	1-	If any process has exited (those with status ENV_EXIT), then remove one or more of these exited processes from the main memory
+		bool foundExitedEnv = removeExitedEnvs();
+
+
 		//	2-	otherwise, free at least 1 frame from the second list of the working set of EACH process
+		if (!foundExitedEnv)
+			removeVictimFromEachProcess();
+
+
 
 	}
-
 	LIST_REMOVE(&free_frame_list,*ptr_frame_info);
 
 	/******************* PAGE BUFFERING CODE *******************
@@ -961,7 +999,7 @@ struct freeFramesCounters calculate_available_frames()
 		slowPtr = LIST_NEXT(slowPtr); // advance the slow pointer only once
 	}
 	cprintf("finished loop detction\n");
-	 */
+	*/
 	//calculate the free frames from the free frame list
 	struct Frame_Info *ptr;
 	uint32 totalFreeUnBuffered = 0 ;
