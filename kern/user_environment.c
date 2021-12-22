@@ -865,8 +865,6 @@ bool isInFreeList(struct Frame_Info* frame)
 
 void env_free(struct Env *e)
 {
-	//__remove_pws_user_pages(e);
-
 	//TODO: [PROJECT 2021 - BONUS1] Exit [env_free()]
 
 	//YOUR CODE STARTS HERE, remove the panic and write your code ----
@@ -878,15 +876,13 @@ void env_free(struct Env *e)
 	freeWSPages(e ,&(e->ActiveList));
 	freeWSPages(e ,&(e->SecondList));
 
-	//tlbflush();
-
+	//FIXME: tef2 doesn't work
 
 	// [3] Free all TABLES from the main memory
-	for(int i = 0; i < 1024; i++)
+	for(int i = 0; i < PDX(USER_TOP); i++)
 	{
 
 		if((e->env_page_directory[i] & 0xFFFFF000) != 0){
-			//FIXME: when the below line is uncommented, it goes into infinite loop
 			uint32 phys_addr = (e->env_page_directory[i] & 0xFFFFF000);
 			LOG("Freeing frame with phys addr : %x\n", phys_addr);
 
