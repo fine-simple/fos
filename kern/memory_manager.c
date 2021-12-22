@@ -808,7 +808,7 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 	//TODO: [PROJECT 2021 - [2] User Heap] allocateMem() [Kernel Side]
 
 	// Assuming "size" is in bytes
-	int number_of_frames = ROUNDUP(size, PAGE_SIZE) / 1024 / 4;
+	int number_of_frames = ROUNDUP(size, PAGE_SIZE)/ 1024 / 4;
 
 	uint32 current_virtual_address = virtual_address;
 
@@ -839,6 +839,14 @@ void moveSecondListElementToActive(struct Env *e)
 	pt_set_page_permissions(e, element->virtual_address, PERM_PRESENT | PERM_WRITEABLE | PERM_USER, 0);
 }
 
+//////DEBUG//////////
+
+char tmp[2];
+#define ENABLE_DEBUG 0
+#define LOG(text, vars) if(ENABLE_DEBUG){cprintf(text, vars);}
+#define LOG_LISTS if(ENABLE_DEBUG){print_page_working_set_or_LRUlists(curenv);}
+
+/////////// END DEBUG ///////////
 
 void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, struct WS_List* list, bool isActive)
 {
@@ -855,6 +863,7 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 
 
 			LIST_REMOVE(list, element);
+			element->empty = 1;
 			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 			if (isActive && secondListSize != 0)
 			{
@@ -884,6 +893,7 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 
 }
 
+
 void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 
@@ -895,7 +905,8 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 	uint32 startAddress = ROUNDDOWN(virtual_address, PAGE_SIZE);
 	uint32 endAddress = ROUNDUP(virtual_address + size, PAGE_SIZE);
 	uint32 currAddress = startAddress;
-
+	cprintf("start : %x , end : %x\n", startAddress, endAddress);
+	LOG_LISTS
 	for(; currAddress < endAddress; currAddress+=PAGE_SIZE)
 	{
 		//1. Free ALL pages of the given range from the Page File
@@ -905,6 +916,8 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 	freePagesInList(e, startAddress, endAddress, &e->ActiveList, 1);
 	freePagesInList(e, startAddress, endAddress, &e->SecondList, 0);
 	tlbflush();
+
+	LOG_LISTS
 
 }
 

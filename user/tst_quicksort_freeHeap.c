@@ -37,7 +37,7 @@ void _main(void)
 	{
 
 		Iteration++ ;
-		//		cprintf("Free Frames Before Allocation = %d\n", sys_calculate_free_frames()) ;
+			cprintf("Free Frames Before Allocation = %d\n", sys_calculate_free_frames()) ;
 
 	sys_disable_interrupt();
 		readline("Enter the number of elements: ", Line);
@@ -49,7 +49,7 @@ void _main(void)
 		int InitFreeFrames = sys_calculate_free_frames() + sys_calculate_modified_frames() - numOFEmptyLocInWS ;
 
 		Elements[NumOfElements] = 10 ;
-		//		cprintf("Free Frames After Allocation = %d\n", sys_calculate_free_frames()) ;
+				cprintf("Free Frames After Allocation = %d\n", sys_calculate_free_frames()) ;
 		cprintf("Choose the initialization method:\n") ;
 		cprintf("a) Ascending\n") ;
 		cprintf("b) Descending\n") ;
@@ -105,6 +105,9 @@ void _main(void)
 				panic("Please ensure the number of elements and the initialization method of this test");
 
 			numOFEmptyLocInWS = CheckAndCountEmptyLocInWS(myEnv);
+			//TODO : remove
+			cprintf("empty locations in ws after : %d\n", numOFEmptyLocInWS);
+
 			int CurrFreeFrames = sys_calculate_free_frames() + sys_calculate_modified_frames() - numOFEmptyLocInWS;
 			assert(CurrFreeFrames - InitFreeFrames == 0) ;
 		}
@@ -124,7 +127,7 @@ void _main(void)
 
 			int numOFEmptyLocInWS = CheckAndCountEmptyLocInWS(myEnv);
 			int CurrFreeFrames = sys_calculate_free_frames() + sys_calculate_modified_frames() - numOFEmptyLocInWS;
-			//cprintf("numOFEmptyLocInWS = %d\n", numOFEmptyLocInWS );
+			cprintf("CurrFree = %d\nInit : ", CurrFreeFrames, InitFreeFrames);
 			assert(CurrFreeFrames - InitFreeFrames == 0) ;
 		}
 		///========================================================================
