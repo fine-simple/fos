@@ -805,7 +805,7 @@ int loadtime_map_frame(uint32 *ptr_page_directory, struct Frame_Info *ptr_frame_
 void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 
-	//TODO: [PROJECT 2021 - [2] User Heap] allocateMem() [Kernel Side]
+	//TODO: [DONE] [PROJECT 2021 - [2] User Heap] allocateMem() [Kernel Side]
 
 	// Assuming "size" is in bytes
 	int number_of_frames = ROUNDUP(size, PAGE_SIZE)/ 1024 / 4;
@@ -897,7 +897,7 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 
-	//TODO: [PROJECT 2021 - [2] User Heap] freeMem() [Kernel Side]
+	//TODO: [DONE] [PROJECT 2021 - [2] User Heap] freeMem() [Kernel Side]
 	//This function should:
 	//1. Free ALL pages of the given range from the Page File
 	//2. Free ONLY pages that are resident in the working set from the memory
@@ -905,8 +905,6 @@ void freeMem(struct Env* e, uint32 virtual_address, uint32 size)
 	uint32 startAddress = ROUNDDOWN(virtual_address, PAGE_SIZE);
 	uint32 endAddress = ROUNDUP(virtual_address + size, PAGE_SIZE);
 	uint32 currAddress = startAddress;
-	cprintf("start : %x , end : %x\n", startAddress, endAddress);
-	LOG_LISTS
 	for(; currAddress < endAddress; currAddress+=PAGE_SIZE)
 	{
 		//1. Free ALL pages of the given range from the Page File

@@ -105,9 +105,6 @@ void _main(void)
 				panic("Please ensure the number of elements and the initialization method of this test");
 
 			numOFEmptyLocInWS = CheckAndCountEmptyLocInWS(myEnv);
-			//TODO : remove
-			cprintf("empty locations in ws after : %d\n", numOFEmptyLocInWS);
-
 			int CurrFreeFrames = sys_calculate_free_frames() + sys_calculate_modified_frames() - numOFEmptyLocInWS;
 			assert(CurrFreeFrames - InitFreeFrames == 0) ;
 		}
@@ -127,7 +124,6 @@ void _main(void)
 
 			int numOFEmptyLocInWS = CheckAndCountEmptyLocInWS(myEnv);
 			int CurrFreeFrames = sys_calculate_free_frames() + sys_calculate_modified_frames() - numOFEmptyLocInWS;
-			cprintf("CurrFree = %d\nInit : ", CurrFreeFrames, InitFreeFrames);
 			assert(CurrFreeFrames - InitFreeFrames == 0) ;
 		}
 		///========================================================================

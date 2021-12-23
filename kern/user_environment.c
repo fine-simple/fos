@@ -833,17 +833,15 @@ void freeWSPages(struct Env *e ,struct WS_List* list){
 		struct Frame_Info* fi = NULL;
 			uint32* pt = NULL;
 			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
-			cprintf("WS frame : %x\n", to_physical_address(fi));
-//			if (fi->references != 0)
-//				free_frame(fi);
 			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
 			// [2] Free LRU lists
 			LIST_REMOVE(list, element);
 			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 	}
 }
+
 char tmp[2];
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG 0
 #define LOG(text, vars) if(ENABLE_DEBUG){cprintf(text, vars);}
 #define PAUSE readline("continue?", tmp);
 
@@ -865,18 +863,13 @@ bool isInFreeList(struct Frame_Info* frame)
 
 void env_free(struct Env *e)
 {
-	//TODO: [PROJECT 2021 - BONUS1] Exit [env_free()]
+	//TODO: [DONE] [PROJECT 2021 - BONUS1] Exit [env_free()]
 
 	//YOUR CODE STARTS HERE, remove the panic and write your code ----
-	LOG("\nEnv ID: %d\n", e->env_id);
-	//print_page_working_set_or_LRUlists(e);
-	PAUSE
 	// [1] Free the pages in the PAGE working set from the main memory
 
 	freeWSPages(e ,&(e->ActiveList));
 	freeWSPages(e ,&(e->SecondList));
-
-	//FIXME: tef2 doesn't work
 
 	// [3] Free all TABLES from the main memory
 	for(int i = 0; i < PDX(USER_TOP); i++)
@@ -884,34 +877,19 @@ void env_free(struct Env *e)
 
 		if((e->env_page_directory[i] & 0xFFFFF000) != 0){
 			uint32 phys_addr = (e->env_page_directory[i] & 0xFFFFF000);
-			LOG("Freeing frame with phys addr : %x\n", phys_addr);
-
 			struct Frame_Info* fi = to_frame_info(phys_addr);
-			//LOG("Number of references : %d\n///////\n", fi->references);
-			bool isAlreadyInFree = isInFreeList(fi);
-//			cprintf("Already In frame : %d\n", isAlreadyInFree);
-//			if (isAlreadyInFree)
-//			{
-//				cprintf("Frame : %x\n", phys_addr);
-//
-//			}
-//			PAUSE
-			if (fi->references != 0 && !isAlreadyInFree)
+			if (fi->references != 0)
 			{
 				fi->references = 0;
 				free_frame(fi);
 			}
-			//unmap_frame(e->env_page_directory,(void*) e->env_page_directory[i]);
-
 			e->env_page_directory[i] = 0;
 
 		}
 
 	}
 	// [4] Free the page DIRECTORY from the main memory
-	//LOG("Freeing PD%d\n", 0);
 	free_frame(to_frame_info(e->env_cr3));
-	//LOG("Freed PD%d\n", 0);
 	tlbflush();
 
 	//YOUR CODE ENDS HERE --------------------------------------------

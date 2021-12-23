@@ -495,21 +495,12 @@ char tmp[2];
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
-	//TODO: [PROJECT 2021 - [1] PAGE FAULT HANDLER]
+	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 
-	//   DEBUG
-//	cprintf("STACK PAGES RANGE => between %p , %p\n\n", USTACKBOTTOM ,USTACKTOP);
-//	cprintf("Active List max size : %d, Second Chance list max size: %d\n", curenv->ActiveListSize, curenv->SecondListSize);
-	LOG("fault address : %x\n", fault_va);
-	LOG("Max second size : %d\n", curenv->SecondListSize)
-	//PAUSE
-
-	//////////////-
 
 	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
-
 
 
 	if (element != NULL)// if found in second chance list
@@ -533,7 +524,6 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_PRESENT | PERM_USER | PERM_WRITEABLE);
 
 		int isPageReadSuccess = pf_read_env_page(curenv, (uint32*) fault_va);
-		//LOG("is Page Read Success: %d\n", isPageReadSuccess);
 		if (isPageReadSuccess == 0){
 			addElementToLists(curenv,fault_va);
 		}
@@ -552,7 +542,6 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 			}
 			else
 			{
-
 				panic("Page not found in Page File");
 			}
 		}
@@ -561,13 +550,10 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
 
 
-//	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
-//
-//	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
-//
-//	cprintf("after addElementsToLists: \n");
-//	print_page_working_set_or_LRUlists(curenv);
-	LOG("/////////////////////\n%c", tmp[0]);
+	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
+
+	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
+
 }
 
 
