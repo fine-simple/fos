@@ -20,12 +20,13 @@ int pages_allocated[MAX_NUM_OF_PAGES];
 
 void* malloc(uint32 size)
 {
+	//TODO[DONE] : Malloc User
 	size = ROUNDUP(size, PAGE_SIZE);
 	int num_of_pages = size / PAGE_SIZE;
 	
 	// BEST FIT strategy
 	int min_fit_index = -1;
-	int min_fit_pages = MAX_NUM_OF_PAGES;
+	int min_fit_pages = MAX_NUM_OF_PAGES + 1;
 	int current_free_pages = 0;
 	
 	for (int i = 0; i < MAX_NUM_OF_PAGES; )
@@ -39,21 +40,18 @@ void* malloc(uint32 size)
 			}
 			i+= pages_allocated[i];
 			current_free_pages=0;
+			continue;
 		}
-		else
-		{
-			current_free_pages++;
-			i++;
-		}
+		current_free_pages++;
+		i++;
 	}
 	
-	if(current_free_pages >= num_of_pages && current_free_pages <= min_fit_pages)
+	if(current_free_pages >= num_of_pages && current_free_pages < min_fit_pages)
 	{
 		min_fit_index = MAX_NUM_OF_PAGES - current_free_pages;
 	}
 
 	uint32 va = USER_HEAP_START + min_fit_index * PAGE_SIZE;
-	// cprintf("malloc: allocating %d pages: %d - %d\n", num_of_pages, min_fit_index, min_fit_index + num_of_pages - 1);
 
 	if(min_fit_index == -1)
 		return NULL;
@@ -77,6 +75,7 @@ void* malloc(uint32 size)
 
 void free(void* virtual_address)
 {
+	//TODO[DONE] : Free User
 	int index = ((uint32)virtual_address - USER_HEAP_START) / PAGE_SIZE;
 	int num_of_pages = pages_allocated[index];
 	pages_allocated[index] = 0;
