@@ -598,7 +598,7 @@ void addElementToLists(struct Env* e, uint32 va)
 	{
 		element = LIST_LAST(&(e->PageWorkingSetList));
 		LIST_REMOVE(&(e->PageWorkingSetList), element);
-
+		element->empty = 0;
 		element->virtual_address = va;
 		if(activeListIsFull(e))
 		{
