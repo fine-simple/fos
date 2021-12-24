@@ -484,6 +484,9 @@ bool workingSetIsEmpty(struct Env* e);
 bool activeListIsFull(struct Env* e);
 void* getVictimElement(struct Env* e);
 void moveActiveListElementToSecondList(struct Env* e);
+
+// ============== PRIORITY MANAGER ===============
+void priorityManager(struct Env *env);
 ////////
 
 char tmp[2];
@@ -495,6 +498,10 @@ char tmp[2];
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
+
+	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
+	//priorityManager(curenv);
+
 	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
@@ -552,7 +559,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
 
-	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
+
 
 }
 
@@ -674,3 +681,102 @@ void moveActiveListElementToSecondList(struct Env* e)
 
 	return;
 }
+
+// ===============================================//
+// ============== PRIORITY MANAGER ===============//
+// ===============================================//
+//void setPriorityBelowNormal(struct Env *env);
+//void setPriorityAboveNormal(struct Env *env);
+//void setPriorityHigh(struct Env *env);
+//bool halfWsIsEmpty(struct Env *env);
+//void resizeLRU(struct Env *env, int newActiveSize, int newSecondSize);
+//void updateListsSizes(struct Env *env, int newActiveSize, int newSecondSize);
+//
+//
+//void priorityManager(struct Env *env)
+//{
+//	switch(env->priority)
+//		{
+//		case PRIORITY_LOW:
+//			break;
+//		case PRIORITY_BELOWNORMAL:
+//			if (env->isWSChanged && halfWsIsEmpty(env))
+//			{
+//				setPriorityBelowNormal(env);
+//				env->isWSChanged = 0;
+//			}
+//			break;
+//		case PRIORITY_NORMAL:
+//			break;
+//		case PRIORITY_ABOVENORMAL:
+//			if (env->isWSChanged )
+//			{
+//				setPriorityAboveNormal(env);
+//				env->isWSChanged = 0;
+//			}
+//			break;
+//		case PRIORITY_HIGH:
+//			setPriorityHigh(env);
+//			break;
+//		}
+//
+//}
+//
+//
+//void setPriorityBelowNormal(struct Env *env)
+//{
+//	//FIXME: probably will need further thinking
+//	int newActiveSize = ROUNDUP(env->ActiveListSize / 2, 2);
+//	int newSecondSize = ROUNDUP(env->SecondListSize / 2, 2);
+//
+//	resizeLRU(env, newActiveSize, newSecondSize);
+//
+//}
+//
+//void setPriorityAboveNormal(struct Env *env)
+//{
+//	updateListsSizes(env, env->ActiveListSize * 2, env->SecondListSize * 2);
+//}
+//
+//void setPriorityHigh(struct Env *env)
+//{
+//	uint32 Giga =  1024 * 1024 * 1024;
+//	if (env->page_WS_max_size * PAGE_SIZE < 2 * Giga)
+//	{
+//		updateListsSizes(env, env->ActiveListSize * 2, env->SecondListSize * 2);
+//	}
+//}
+//
+//////////// PRIORITY HELPERS ///////////
+//void resizeLRU(struct Env *env, int newActiveSize, int newSecondSize)
+//{
+//	//remove last half of second list
+//		while(LIST_SIZE(&env->SecondList) > newSecondSize)
+//			getVictimElement(env);
+//
+//		// move half of elements of active list to second list
+//		while(LIST_SIZE(&env->ActiveList) > newActiveSize)
+//		{
+//			//if second is full remove a victim
+//			if(LIST_SIZE(&env->SecondList) == newSecondSize)
+//				getVictimElement(env);
+//
+//			moveActiveListElementToSecondList(env);
+//		}
+//
+//	updateListsSizes(env, newActiveSize, newSecondSize);
+//}
+//
+//void updateListsSizes(struct Env *env, int newActiveSize, int newSecondSize)
+//{
+//	env->ActiveListSize = newActiveSize;
+//	env->SecondListSize = newSecondSize;
+//	env->page_WS_max_size = newActiveSize + newSecondSize;
+//}
+//
+//bool halfWSIsEmpty(struct Env *env)
+//{
+//	bool activeLessThanHalf =  (LIST_SIZE(&env->ActiveList) <= env->ActiveListSize / 2);
+//	bool secondLessThanHalf =  (LIST_SIZE(&env->SecondList) <= env->SecondListSize / 2);
+//	return activeLessThanHalf && secondLessThanHalf;
+//}

@@ -143,6 +143,11 @@ struct Env {
 	struct WS_List SecondList ;		//LRU Approx: SecondList that should work as LRU
 	int ActiveListSize ;			//LRU Approx: Max allowed size of ActiveList
 	int SecondListSize ;			//LRU Approx: Max allowed size of SecondList
+
+	//Priority management
+	int originalActiveListSize;
+	int originalSecondListSize;
+	bool isWSChanged;              // set by priority manager and reset by PFH
 	//================================================================================
 };
 
