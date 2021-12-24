@@ -834,7 +834,7 @@ void allocateMem(struct Env* e, uint32 virtual_address, uint32 size)
 void moveSecondListElementToActive(struct Env *e)
 {
 	struct WorkingSetElement *element = LIST_FIRST(&(e->SecondList));
-	LIST_REMOVE(&(e->SecondList), element);
+	removeFromSC(e, element);
 	LIST_INSERT_TAIL(&(e->ActiveList), element);
 	pt_set_page_permissions(e, element->virtual_address, PERM_PRESENT | PERM_WRITEABLE | PERM_USER, 0);
 }
@@ -863,6 +863,8 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 
 
 			LIST_REMOVE(list, element);
+			if(!isActive)
+				removeFromSCArr(element);
 			element->empty = 1;
 			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 			if (isActive && secondListSize != 0)

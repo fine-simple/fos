@@ -733,11 +733,13 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 	//LRU Lists: Reset PRESENT bit of all pages in Second List
 	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
 	{
+		// add to SC Arr
 		struct WorkingSetElement * elm = NULL;
 		LIST_FOREACH(elm, &(e->SecondList))
 		{
 			//set it's PRESENT bit to 0
 			pt_set_page_permissions(e, elm->virtual_address, 0, PERM_PRESENT);
+			addToSCArr(elm);
 		}
 	}
 
@@ -826,17 +828,22 @@ void start_env_free(struct Env *e)
 	}
 }
 
-void freeWSPages(struct Env *e ,struct WS_List* list){
+void freeWSPages(struct Env *e ,struct WS_List* list, bool isActive){
 	struct WorkingSetElement* element ;
 	LIST_FOREACH(element, list)
 	{
 		struct Frame_Info* fi = NULL;
-			uint32* pt = NULL;
-			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
-			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
-			// [2] Free LRU lists
-			LIST_REMOVE(list, element);
-			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
+		uint32* pt = NULL;
+		fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+		unmap_frame(e->env_page_directory, (void*)element->virtual_address);
+		cprintf("va in env free:%p\n", element->virtual_address);
+		// [2] Free LRU lists
+		if(!isActive)
+		{
+			removeFromSCArr(element);
+		}
+		LIST_REMOVE(list, element);
+		LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 	}
 }
 
@@ -868,8 +875,8 @@ void env_free(struct Env *e)
 	//YOUR CODE STARTS HERE, remove the panic and write your code ----
 	// [1] Free the pages in the PAGE working set from the main memory
 
-	freeWSPages(e ,&(e->ActiveList));
-	freeWSPages(e ,&(e->SecondList));
+	freeWSPages(e ,&(e->ActiveList), 1);
+	freeWSPages(e ,&(e->SecondList), 0);
 
 	// [3] Free all TABLES from the main memory
 	for(int i = 0; i < PDX(USER_TOP); i++)

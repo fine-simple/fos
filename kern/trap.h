@@ -26,6 +26,9 @@ uint32 _PageRepAlgoType;
 #define PG_REP_FIFO 0x4
 #define PG_REP_MODIFIEDCLOCK  0x5
 
+struct WorkingSetElement *stackElementsInSCList[322330];
+struct WorkingSetElement *elementsInSCList[(USER_HEAP_MAX-USER_HEAP_START)/PAGE_SIZE];
+
 void idt_init(void);
 void print_regs(struct PushRegs *regs);
 void print_trapframe(struct Trapframe *tf);
@@ -49,6 +52,9 @@ void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element);
 void* getVictimElement(struct Env* e);
 void moveActiveListElementToSecondList(struct Env* e);
 void print_page_working_set_or_LRUlists(struct Env *e);
-
+void addToSCArr(struct WorkingSetElement *element);
+void removeFromSCArr(struct WorkingSetElement *element);
+void insertInSC(struct Env* e, struct WorkingSetElement* element);
+void removeFromSC(struct Env* e, struct WorkingSetElement* element);
 
 #endif /* FOS_KERN_TRAP_H */

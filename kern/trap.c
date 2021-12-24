@@ -485,6 +485,13 @@ bool activeListIsFull(struct Env* e);
 void* getVictimElement(struct Env* e);
 void moveActiveListElementToSecondList(struct Env* e);
 
+
+bool isStackPage(uint32 va);
+int page_index(uint32 va);
+void addToSCArr(struct WorkingSetElement *element);
+void removeFromSCArr(struct WorkingSetElement *element);
+void insertInSC(struct Env* e, struct WorkingSetElement* element);
+void removeFromSC(struct Env* e, struct WorkingSetElement* element);
 // ============== PRIORITY MANAGER ===============
 void priorityManager(struct Env *env);
 ////////
@@ -495,6 +502,8 @@ char tmp[2];
 #define LOG_LISTS if(ENABLE_DEBUG){print_page_working_set_or_LRUlists(curenv);}
 #define PAUSE readline("continue?", tmp);
 
+struct WorkingSetElement *stackElementsInSCList[322330] = {};
+struct WorkingSetElement *elementsInSCList[(USER_HEAP_MAX-USER_HEAP_START)/PAGE_SIZE] = {};
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
@@ -505,10 +514,9 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
-
+	cprintf("fault va: %p\n", fault_va);
 
 	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
-
 
 	if (element != NULL)// if found in second chance list
 	{
@@ -517,7 +525,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		{
 			moveActiveListElementToSecondList(curenv);
 		}
-		LIST_REMOVE(&(curenv->SecondList), element);
+		removeFromSC(curenv, element);
 		LIST_INSERT_HEAD(&(curenv->ActiveList), element);
 	}
 	else
@@ -533,12 +541,11 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		int isPageReadSuccess = pf_read_env_page(curenv, (uint32*) fault_va);
 		if (isPageReadSuccess == 0){
 			addElementToLists(curenv,fault_va);
+			//cprintf("read from page file and added to lists successfully\n");
 		}
 		else
 		{
-			bool isStackPage = (fault_va>=USTACKBOTTOM && fault_va<=USTACKTOP);
-
-			if(isStackPage)
+			if(isStackPage(fault_va))
 			{
 				int err = pf_add_empty_env_page(curenv, fault_va, 1);
 
@@ -569,19 +576,59 @@ void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 	panic("this function is not required...!!");
 }
 
+bool isStackPage(uint32 va)
+{
+	return(va>=USTACKBOTTOM && va<=USTACKTOP);
+}
+int page_index(uint32 va)
+{
+	return (isStackPage(va)? (va-USTACKBOTTOM)/PAGE_SIZE:(va-USER_HEAP_START)/PAGE_SIZE);
+}
+void addToSCArr(struct WorkingSetElement *element)
+{
+	unsigned int va = element->virtual_address;
+	int page_no = page_index(va);
+	bool stackPage = isStackPage(va);
+	if(stackPage)
+	{
+		stackElementsInSCList[page_no] = element;
+	}
+	else
+	{
+		elementsInSCList[page_no] = element;
+	}
+}
+void removeFromSCArr(struct WorkingSetElement *element)
+{
+	unsigned int va = element->virtual_address;
+	int page_no = page_index(va);
+	bool stackPage = isStackPage(va);
+	if(stackPage)
+		stackElementsInSCList[page_no] = NULL;
+	else
+		elementsInSCList[page_no] = NULL;
+}
 void* findInSecondChance(struct Env* e, uint32 va)
 {
-	struct WorkingSetElement *currentElement;
-	LIST_FOREACH(currentElement,&(e->SecondList))
-	{
-		if (currentElement->virtual_address == va)
-		{
-			return currentElement;
-		}
-	}
+	int page_no = page_index(va);
+	if(isStackPage(va))
+		return stackElementsInSCList[page_no];
+	else
+		return elementsInSCList[page_no];
 	return NULL;
 }
-
+void insertInSC(struct Env* e, struct WorkingSetElement* element)
+{
+	// insert in List and array
+	LIST_INSERT_HEAD(&(e->SecondList), element);
+	addToSCArr(element);
+}
+void removeFromSC(struct Env* e, struct WorkingSetElement* element)
+{
+	// remove from SC List and Array
+	LIST_REMOVE(&(e->SecondList), element);
+	removeFromSCArr(element);
+}
 void addElementToLists(struct Env* e, uint32 va)
 {
 
@@ -656,9 +703,14 @@ void* getVictimElement(struct Env* e)
 {
 	struct WS_List *list;
 	if (e->SecondListSize == 0)
+	{
 		list = &e->ActiveList;
+	}
 	else
+	{
 		list = &e->SecondList;
+		removeFromSCArr(LIST_LAST(list));
+	}
 
 	struct WorkingSetElement *victimElement = LIST_LAST(list);
 
@@ -676,7 +728,7 @@ void moveActiveListElementToSecondList(struct Env* e)
 {
 	struct WorkingSetElement *activeListTail = LIST_LAST(&(e->ActiveList));
 	LIST_REMOVE(&(e->ActiveList), activeListTail);
-	LIST_INSERT_HEAD(&(e->SecondList), activeListTail);
+	insertInSC(e, activeListTail);
 	pt_set_page_permissions(e, activeListTail->virtual_address, 0, PERM_PRESENT);
 
 	return;
