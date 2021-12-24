@@ -15,8 +15,11 @@
 //==================================================================================//
 //============================ REQUIRED FUNCTIONS ==================================//
 //==================================================================================//
+
 #define MAX_NUM_OF_PAGES ((USER_HEAP_MAX - USER_HEAP_START) / PAGE_SIZE)
+
 int pages_allocated[MAX_NUM_OF_PAGES];
+int last_index;
 
 void* malloc(uint32 size)
 {
@@ -29,8 +32,9 @@ void* malloc(uint32 size)
 	int min_fit_pages = MAX_NUM_OF_PAGES + 1;
 	int current_free_pages = 0;
 	
-	for (int i = 0; i < MAX_NUM_OF_PAGES; )
+	for (int i = 0; i < MAX_NUM_OF_PAGES && i < last_index; )
 	{
+		// cprintf("malloc: in loop %d\n", i);
 		if(pages_allocated[i] != 0)
 		{
 			if(current_free_pages >= num_of_pages && current_free_pages < min_fit_pages )
@@ -46,6 +50,8 @@ void* malloc(uint32 size)
 		i++;
 	}
 	
+	current_free_pages += MAX_NUM_OF_PAGES - last_index;
+
 	if(current_free_pages >= num_of_pages && current_free_pages < min_fit_pages)
 	{
 		min_fit_index = MAX_NUM_OF_PAGES - current_free_pages;
@@ -55,7 +61,11 @@ void* malloc(uint32 size)
 
 	if(min_fit_index == -1)
 		return NULL;
+	else if(min_fit_index >= last_index)
+		last_index = min_fit_index + num_of_pages;
 	
+	// cprintf("malloc: allocating %d pages: %d -> %d\n", num_of_pages, min_fit_index, min_fit_index + num_of_pages);
+
 	// allocate the pages
 	pages_allocated[min_fit_index] = num_of_pages;
 	sys_allocateMem(va, size);
@@ -77,11 +87,9 @@ void free(void* virtual_address)
 {
 	//TODO[DONE] : Free User
 	int index = ((uint32)virtual_address - USER_HEAP_START) / PAGE_SIZE;
-	int num_of_pages = pages_allocated[index];
-	pages_allocated[index] = 0;
 
-	// cprintf("free: freeing %d pages: %d - %d\n", num_of_pages, index, index + num_of_pages - 1);
-	sys_freeMem((uint32)virtual_address, num_of_pages * PAGE_SIZE);
+	sys_freeMem((uint32)virtual_address, pages_allocated[index] * PAGE_SIZE);
+	pages_allocated[index] = 0;
 }
 
 //==================================================================================//
