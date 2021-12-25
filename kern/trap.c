@@ -503,7 +503,7 @@ char tmp[2];
 #define PAUSE readline("continue?", tmp);
 
 struct WorkingSetElement *stackElementsInSCList[322330] = {};
-struct WorkingSetElement *elementsInSCList[(USER_HEAP_MAX-USER_HEAP_START)/PAGE_SIZE] = {};
+struct WorkingSetElement *elementsInSCList[USER_HEAP_MAX/PAGE_SIZE] = {};
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
@@ -514,7 +514,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
-	cprintf("fault va: %p\n", fault_va);
+	//cprintf("fault va: %p\n", fault_va);
 
 	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
 
@@ -582,7 +582,7 @@ bool isStackPage(uint32 va)
 }
 int page_index(uint32 va)
 {
-	return (isStackPage(va)? (va-USTACKBOTTOM)/PAGE_SIZE:(va-USER_HEAP_START)/PAGE_SIZE);
+	return (isStackPage(va)? (va-USTACKBOTTOM)/PAGE_SIZE:(va)/PAGE_SIZE);
 }
 void addToSCArr(struct WorkingSetElement *element)
 {

@@ -26,9 +26,6 @@ uint32 _PageRepAlgoType;
 #define PG_REP_FIFO 0x4
 #define PG_REP_MODIFIEDCLOCK  0x5
 
-struct WorkingSetElement *stackElementsInSCList[322330];
-struct WorkingSetElement *elementsInSCList[(USER_HEAP_MAX-USER_HEAP_START)/PAGE_SIZE];
-
 void idt_init(void);
 void print_regs(struct PushRegs *regs);
 void print_trapframe(struct Trapframe *tf);
