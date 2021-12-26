@@ -87,7 +87,8 @@ void free(void* virtual_address)
 {
 	//TODO[DONE] : Free User
 	int index = ((uint32)virtual_address - USER_HEAP_START) / PAGE_SIZE;
-
+	if(index + pages_allocated[index] == last_index)
+		last_index = index;
 	sys_freeMem((uint32)virtual_address, pages_allocated[index] * PAGE_SIZE);
 	pages_allocated[index] = 0;
 }
