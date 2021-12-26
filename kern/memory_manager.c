@@ -859,6 +859,7 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 			struct Frame_Info* fi = NULL;
 			uint32* pt = NULL;
 			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+			fi->element = NULL;
 			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
 
 

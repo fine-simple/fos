@@ -410,14 +410,21 @@ static int program_segment_alloc_map_copy_workingset(struct Env *e, struct Progr
 		{
 			LIST_REMOVE(&(e->PageWorkingSetList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
 			//Always leave 1 page in Active list for the stack
+			//PFH set WS elements in frames
 			if (LIST_SIZE(&(e->ActiveList)) < e->ActiveListSize - 1)
 			{
 				LIST_INSERT_HEAD(&(e->ActiveList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+				uint32* pt = NULL;
+			    struct Frame_Info *fi = get_frame_info(e->env_page_directory, (void*)LIST_FIRST(&(e->ActiveList))->virtual_address, &pt);
+				fi->element = LIST_FIRST(&(e->ActiveList));
 			}
 			else
 			{
 				//Add to LRU Second list
 				LIST_INSERT_HEAD(&(e->SecondList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+				uint32* pt = NULL;
+				struct Frame_Info *fi = get_frame_info(e->env_page_directory, (void*)LIST_FIRST(&(e->SecondList))->virtual_address, &pt);
+				fi->element = LIST_FIRST(&(e->SecondList));
 			}
 		}
 		//=======================
@@ -712,10 +719,12 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 				if (LIST_SIZE(&(e->ActiveList)) < e->ActiveListSize)
 				{
 					LIST_INSERT_HEAD(&(e->ActiveList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+					pp->element = LIST_FIRST(&(e->ActiveList));
 				}
 				else
 				{
 					LIST_INSERT_HEAD(&(e->SecondList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+					pp->element = LIST_FIRST(&(e->SecondList));
 				}
 			}
 			e->page_last_WS_index ++;
@@ -738,6 +747,7 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 		{
 			//set it's PRESENT bit to 0
 			pt_set_page_permissions(e, elm->virtual_address, 0, PERM_PRESENT);
+			
 		}
 	}
 
@@ -831,12 +841,13 @@ void freeWSPages(struct Env *e ,struct WS_List* list){
 	LIST_FOREACH(element, list)
 	{
 		struct Frame_Info* fi = NULL;
-			uint32* pt = NULL;
-			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
-			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
-			// [2] Free LRU lists
-			LIST_REMOVE(list, element);
-			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
+		uint32* pt = NULL;
+		fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+		unmap_frame(e->env_page_directory, (void*)element->virtual_address);
+		fi->element = NULL;
+		// [2] Free LRU lists
+		LIST_REMOVE(list, element);
+		LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 	}
 }
 

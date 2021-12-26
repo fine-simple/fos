@@ -512,7 +512,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	if (element != NULL)// if found in second chance list
 	{
-
+	
 		if (activeListIsFull(curenv))
 		{
 			moveActiveListElementToSecondList(curenv);
@@ -571,13 +571,15 @@ void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 
 void* findInSecondChance(struct Env* e, uint32 va)
 {
-	struct WorkingSetElement *currentElement;
-	LIST_FOREACH(currentElement,&(e->SecondList))
+	uint32 *ptr_page_table = NULL;
+	struct Frame_Info *frame = get_frame_info(e->env_page_directory,(void*)va, &ptr_page_table);
+	if(frame==NULL)
+		return NULL;
+
+	uint32 perms = pt_get_page_permissions(e, va);
+	if(!(perms&PERM_PRESENT))
 	{
-		if (currentElement->virtual_address == va)
-		{
-			return currentElement;
-		}
+		return frame->element;
 	}
 	return NULL;
 }
@@ -613,7 +615,9 @@ void addElementToLists(struct Env* e, uint32 va)
 			moveActiveListElementToSecondList(e);
 		LIST_INSERT_HEAD(&(e->ActiveList), element);
 	}
-
+	uint32* pt = NULL;
+	struct Frame_Info *fi = get_frame_info(e->env_page_directory, (void*)va, &pt);
+	fi->element = element;
 
 }
 
@@ -622,17 +626,16 @@ void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element)
 	uint32 va = element->virtual_address;
 	uint32 perms = pt_get_page_permissions(e, va);
 	bool modified = (PERM_MODIFIED&perms);
-	if(!modified)
-	{
-		unmap_frame(e->env_page_directory, (uint32*) va);
-		return;
-	}
 	uint32 *ptr_page_table;
 	struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void*)va, &ptr_page_table);
-	int success = pf_update_env_page(e, (void *)va, ptr_frame_info);
-	if(success != 0)
-		panic("Page to be updated doesn't exist in Page File");
+	if(modified)
+	{
+		int success = pf_update_env_page(e, (void *)va, ptr_frame_info);
+		if(success != 0)
+			panic("Page to be updated doesn't exist in Page File");
+	}
 
+	ptr_frame_info->element = NULL;
 	unmap_frame(e->env_page_directory, (uint32*) va);
 }
 
