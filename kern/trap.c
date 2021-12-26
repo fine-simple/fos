@@ -311,7 +311,7 @@ void trap(struct Trapframe *tf)
 //2020
 void setPageReplacmentAlgorithmLRU(int LRU_TYPE)
 {
-	assert(LRU_TYPE == PG_REP_LRU_TIME_APPROX || LRU_TYPE == PG_REP_LRU_LISTS_APPROX);
+	assert(LRU_TYPE == PG_REP_LRU_TIME_APPROX || LRU_TYPE == PG_REP_LRU_LISTS_APPROX || LRU_TYPE == PG_REP_LRU_LISTS_APPROX_O1);
 	_PageRepAlgoType = LRU_TYPE ;
 }
 void setPageReplacmentAlgorithmCLOCK(){_PageRepAlgoType = PG_REP_CLOCK;}
@@ -366,7 +366,7 @@ void detect_modified_loop()
 
 void print_page_working_set_or_LRUlists(struct Env *e)
 {
-	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 	{
 		int i = 0;
 		cprintf("ActiveList:\n============\n") ;
@@ -477,7 +477,8 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 //Handle the page fault
 
 //// HELPERS ///
-void* findInSecondChance(struct Env* e, uint32 va);
+void PFH(struct Env * curenv, uint32 fault_va, bool o_1);
+void* findInSecondChance(struct Env* e, uint32 va, bool o_1);
 void addElementToLists(struct Env* e, uint32 va);
 void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element);
 bool workingSetIsEmpty(struct Env* e);
@@ -504,11 +505,29 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
+	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	{
+		//O(N)pagefaulthandlercode
+		PFH(curenv, fault_va, 0);
+	}
+	else if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
+	{
+		//O(1)pagefaulthandlercode
+		PFH(curenv, fault_va, 1);
+	}
+
+	//TODO: [DONE] [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
+
+
+
+}
+
+void PFH(struct Env * curenv, uint32 fault_va, bool o_1)
+{
+
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 
-
-	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
-
+	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va, o_1);
 
 	if (element != NULL)// if found in second chance list
 	{
@@ -556,21 +575,27 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
 
-
-	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
-
-
-
 }
-
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {
 	panic("this function is not required...!!");
 }
 
-void* findInSecondChance(struct Env* e, uint32 va)
+void* findInSecondChance(struct Env* e, uint32 va, bool o_1)
 {
+	if(o_1)
+	{
+		struct WorkingSetElement *currentElement;
+		LIST_FOREACH(currentElement,&(e->SecondList))
+		{
+				if (currentElement->virtual_address == va)
+				{
+					return currentElement;
+				}
+		}
+		return NULL;
+	}
 	uint32 *ptr_page_table = NULL;
 	struct Frame_Info *frame = get_frame_info(e->env_page_directory,(void*)va, &ptr_page_table);
 	if(frame==NULL)
@@ -783,3 +808,4 @@ void moveActiveListElementToSecondList(struct Env* e)
 //	bool secondLessThanHalf =  (LIST_SIZE(&env->SecondList) <= env->SecondListSize / 2);
 //	return activeLessThanHalf && secondLessThanHalf;
 //}
+

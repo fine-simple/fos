@@ -194,7 +194,7 @@ struct Command commands[] =
 		{"tstkrealloc","Kernel realloc: test realloc (virtual address = 0)",command_test_krealloc },
 		{"tstpriority1", "Tests the priority of the program (Normal and Higher)", command_test_priority1},
 		{"tstpriority2", "Tests the priority of the program (Normal and Lower)", command_test_priority2},
-		{"tstsc4","Scenario#4: MLFQ",command_test_sc_MLFQ }
+		{"tstsc4","Scenario#4: MLFQ",command_test_sc_MLFQ },
 };
 
 //Number of commands = size of the array / size of command structure
@@ -782,7 +782,7 @@ struct Env * CreateEnv(int number_of_arguments, char **arguments)
 		switch (number_of_arguments)
 		{
 		case 5:
-			if(!isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+			if(!isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) && !isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 			{
 				cprintf("ERROR: Current Replacement is NOT LRU LISTS, invalid number of args\nUsage: <command> <prog_name> <page_WS_size> [<LRU_second_list_size>] [<DYN_LOC_SCOPE_percent_WS_to_remove>]\naborting...\n");
 				return NULL;
@@ -792,7 +792,7 @@ struct Env * CreateEnv(int number_of_arguments, char **arguments)
 			pageWSSize = strtol(arguments[2], NULL, 10);
 			break;
 		case 4:
-			if(!isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+			if(!isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) && !isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 			{
 				percent_WS_pages_to_remove = strtol(arguments[3], NULL, 10);
 			}
@@ -803,7 +803,7 @@ struct Env * CreateEnv(int number_of_arguments, char **arguments)
 			pageWSSize = strtol(arguments[2], NULL, 10);
 			break;
 		case 3:
-			if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+			if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 			{
 				cprintf("ERROR: Current Replacement is LRU LISTS, Please specify a working set size in the 3rd arg and LRU second list size in the 4th arg, aborting.\n");
 				return NULL;
@@ -821,7 +821,7 @@ struct Env * CreateEnv(int number_of_arguments, char **arguments)
 			cprintf("ERROR: size of WS must be less than or equal to %d... aborting", __PWS_MAX_SIZE);
 			return NULL;
 		}
-		if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+		if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 		{
 			if (LRUSecondListSize > pageWSSize - 1)
 			{
@@ -920,7 +920,7 @@ int command_set_page_rep_LRU(int number_of_arguments, char **arguments)
 {
 	if (number_of_arguments < 2)
 	{
-		cprintf("ERROR: please specify the LRU Approx Type (1: TimeStamp Approx, 2: Lists Approx), aborting...\n");
+		cprintf("ERROR: please specify the LRU Approx Type (1: TimeStamp Approx, 2: Lists Approx 3: O(1) Lists Approx), aborting...\n");
 		return 0;
 	}
 	int LRU_TYPE = strtol(arguments[1], NULL, 10) ;
@@ -934,9 +934,14 @@ int command_set_page_rep_LRU(int number_of_arguments, char **arguments)
 		setPageReplacmentAlgorithmLRU(LRU_TYPE);
 		cprintf("Page replacement algorithm is now LRU with LISTS approximation\n");
 	}
+	else if (LRU_TYPE == PG_REP_LRU_LISTS_APPROX_O1)
+	{
+		setPageReplacmentAlgorithmLRU(LRU_TYPE);
+		cprintf("Page replacement algorithm is now O(1) LRU with LISTS approximation\n");
+	}
 	else
 	{
-		cprintf("ERROR: Invalid LRU Approx Type (1: TimeStamp Approx, 2: Lists Approx), aborting...\n");
+		cprintf("ERROR: Invalid LRU Approx Type (1: TimeStamp Approx, 2: Lists Approx 3: O(1) Lists Approx), aborting...\n");
 		return 0;
 	}
 	return 0;
@@ -1035,6 +1040,8 @@ int command_print_page_rep(int number_of_arguments, char **arguments)
 		cprintf("Page replacement algorithm is LRU with TimeStamp approximation\n");
 	else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
 		cprintf("Page replacement algorithm is LRU with LISTS approximation\n");
+	else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
+			cprintf("Page replacement algorithm is O(1) LRU with LISTS approximation\n");
 	else if (isPageReplacmentAlgorithmFIFO())
 		cprintf("Page replacement algorithm is FIFO\n");
 	else if (isPageReplacmentAlgorithmModifiedCLOCK())
