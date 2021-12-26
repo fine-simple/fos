@@ -1,7 +1,7 @@
 // Scenario that tests environment free run tef1 5 3
 #include <inc/lib.h>
 
-#define LOG(text, vars) cprintf(text, vars);
+
 void _main(void)
 {
 	// Testing scenario 1: without using dynamic allocation/de-allocation, shared variables and semaphores
@@ -9,7 +9,7 @@ void _main(void)
 
 	int freeFrames_before = sys_calculate_free_frames() ;
 	int usedDiskPages_before = sys_pf_calculate_allocated_pages() ;
-	cprintf("\n---# of free frames before running programs = %d\n", freeFrames_before);
+	//cprintf("\n---# of free frames before running programs = %d\n", freeFrames_before);
 
 	/*[4] CREATE AND RUN ProcessA & ProcessB*/
 	//Create 3 processes
@@ -18,7 +18,7 @@ void _main(void)
 	int32 envIdProcessB = sys_create_env("ef_fact", (myEnv->page_WS_max_size)-1,(myEnv->SecondListSize), 50);
 	int32 envIdProcessC = sys_create_env("ef_fos_add",(myEnv->page_WS_max_size)*4,(myEnv->SecondListSize), 50);
 
-
+	//cprintf("Env ID in test : %d\n", envIdProcessA);
 	//Run 3 processes
 	sys_run_env(envIdProcessA);
 	sys_run_env(envIdProcessB);

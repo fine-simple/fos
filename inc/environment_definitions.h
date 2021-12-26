@@ -51,6 +51,7 @@ unsigned int _ModifiedBufferLength;
 #define ENV_EXIT		5
 #define ENV_UNKNOWN		6
 
+#define MAX_ENV_CNT 12
 
 uint32 old_pf_counter;
 //uint32 mydblchk;
@@ -60,6 +61,11 @@ struct WorkingSetElement {
 
 	//2020
 	LIST_ENTRY(WorkingSetElement) prev_next_info;	// list link pointers
+
+	//O(1) PFH
+	bool presentInEnvs[MAX_ENV_CNT];    //O(1) pfh check
+	struct WorkingSetElement *envs_next_info[MAX_ENV_CNT];
+	struct WorkingSetElement *envs_prev_info[MAX_ENV_CNT];
 };
 
 struct SharingVarInfo

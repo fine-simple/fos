@@ -492,18 +492,25 @@ void addToSCArr(struct WorkingSetElement *element);
 void removeFromSCArr(struct WorkingSetElement *element);
 void insertInSC(struct Env* e, struct WorkingSetElement* element);
 void removeFromSC(struct Env* e, struct WorkingSetElement* element);
+void mapElementToEnviroment(struct WorkingSetElement* element);
+void unmapElementFromEnviroment(struct WorkingSetElement* element, int page_no ,bool isStackPage);
 // ============== PRIORITY MANAGER ===============
 void priorityManager(struct Env *env);
 ////////
 
+//==== DEBUG ====//
 char tmp[2];
 #define ENABLE_DEBUG 0
 #define LOG(text, vars) if(ENABLE_DEBUG){cprintf(text, vars);}
 #define LOG_LISTS if(ENABLE_DEBUG){print_page_working_set_or_LRUlists(curenv);}
 #define PAUSE readline("continue?", tmp);
+uint32 debug_fva;
+//==============//
 
+#define MIN_ENV_ID 4096
 struct WorkingSetElement *stackElementsInSCList[322330] = {};
 struct WorkingSetElement *elementsInSCList[USER_HEAP_MAX/PAGE_SIZE] = {};
+int faultedEnv;
 
 void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
@@ -514,7 +521,9 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
-	//cprintf("fault va: %p\n", fault_va);
+
+	faultedEnv = curenv->env_id - MIN_ENV_ID;
+
 
 	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
 
@@ -527,6 +536,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		}
 		removeFromSC(curenv, element);
 		LIST_INSERT_HEAD(&(curenv->ActiveList), element);
+
 	}
 	else
 	{
@@ -536,12 +546,16 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 		if (allocate_frame(&ptr_frame_info) != 0)
 			panic("Failed To Allocate Frame\n");
 
-		map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_PRESENT | PERM_USER | PERM_WRITEABLE);
-
+		int mapRet = map_frame(curenv->env_page_directory, ptr_frame_info, (void*)fault_va, PERM_PRESENT | PERM_USER | PERM_WRITEABLE);
+		if (mapRet!=0)
+		{
+			LOG("PANIC fault va : %x\n", fault_va)
+			panic("Failed to map frame");
+		}
 		int isPageReadSuccess = pf_read_env_page(curenv, (uint32*) fault_va);
 		if (isPageReadSuccess == 0){
 			addElementToLists(curenv,fault_va);
-			//cprintf("read from page file and added to lists successfully\n");
+
 		}
 		else
 		{
@@ -556,6 +570,9 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 			}
 			else
 			{
+				cprintf("PANIC: fault va : %x\n", fault_va);
+				print_page_working_set_or_LRUlists(curenv);
+				PAUSE
 				panic("Page not found in Page File");
 			}
 		}
@@ -564,8 +581,7 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
 
 
-	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
-
+	//TODO: [DOOOONE] [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
 
 
 }
@@ -589,6 +605,9 @@ void addToSCArr(struct WorkingSetElement *element)
 	unsigned int va = element->virtual_address;
 	int page_no = page_index(va);
 	bool stackPage = isStackPage(va);
+
+	mapElementToEnviroment(element);
+
 	if(stackPage)
 	{
 		stackElementsInSCList[page_no] = element;
@@ -603,19 +622,22 @@ void removeFromSCArr(struct WorkingSetElement *element)
 	unsigned int va = element->virtual_address;
 	int page_no = page_index(va);
 	bool stackPage = isStackPage(va);
-	if(stackPage)
-		stackElementsInSCList[page_no] = NULL;
-	else
-		elementsInSCList[page_no] = NULL;
+	unmapElementFromEnviroment(element, page_no, stackPage);
+
 }
 void* findInSecondChance(struct Env* e, uint32 va)
 {
 	int page_no = page_index(va);
+	struct WorkingSetElement *element;
 	if(isStackPage(va))
-		return stackElementsInSCList[page_no];
+		element = stackElementsInSCList[page_no];
 	else
-		return elementsInSCList[page_no];
-	return NULL;
+		element = elementsInSCList[page_no];
+
+	if (element == NULL || element->presentInEnvs[faultedEnv] == 0)
+		return NULL;
+
+	return element;
 }
 void insertInSC(struct Env* e, struct WorkingSetElement* element)
 {
@@ -732,6 +754,31 @@ void moveActiveListElementToSecondList(struct Env* e)
 	pt_set_page_permissions(e, activeListTail->virtual_address, 0, PERM_PRESENT);
 
 	return;
+}
+
+void mapElementToEnviroment(struct WorkingSetElement* element)
+{
+	element->presentInEnvs[faultedEnv] = 1;
+	element->envs_prev_info[faultedEnv] = element->prev_next_info.le_prev;
+	element->envs_next_info[faultedEnv] = element->prev_next_info.le_next;
+}
+
+void unmapElementFromEnviroment(struct WorkingSetElement* element, int page_no, bool isStackPage)
+{
+	if(isStackPage)
+		{
+			stackElementsInSCList[page_no]->presentInEnvs[faultedEnv] = 0;
+			stackElementsInSCList[page_no]->envs_next_info[faultedEnv] = NULL;
+			stackElementsInSCList[page_no]->envs_prev_info[faultedEnv] = NULL;
+			stackElementsInSCList[page_no] = NULL;
+		}
+		else
+		{
+			elementsInSCList[page_no]->presentInEnvs[faultedEnv] = 0;
+			elementsInSCList[page_no]->envs_next_info[faultedEnv] = NULL;
+			elementsInSCList[page_no]->envs_prev_info[faultedEnv] = NULL;
+			elementsInSCList[page_no] = NULL;
+		}
 }
 
 // ===============================================//
