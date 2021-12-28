@@ -19,22 +19,17 @@
 #define MAX_NUM_OF_PAGES ((USER_HEAP_MAX - USER_HEAP_START) / PAGE_SIZE)
 
 int pages_allocated[MAX_NUM_OF_PAGES];
-int last_index;
+int unallocated_start;
 
-void* malloc(uint32 size)
-{
-	//TODO[DONE] : Malloc User
-	size = ROUNDUP(size, PAGE_SIZE);
-	int num_of_pages = size / PAGE_SIZE;
-	
-	// BEST FIT strategy
+int best_fit(int num_of_pages)
+{	
 	int min_fit_index = -1;
 	int min_fit_pages = MAX_NUM_OF_PAGES + 1;
 	int current_free_pages = 0;
 	
-	for (int i = 0; i < MAX_NUM_OF_PAGES && i < last_index; )
+	for (int i = 0; i < MAX_NUM_OF_PAGES && i < unallocated_start; )
 	{
-		// cprintf("malloc: in loop %d\n", i);
+		// if allocated, jump this space
 		if(pages_allocated[i] != 0)
 		{
 			if(current_free_pages >= num_of_pages && current_free_pages < min_fit_pages )
@@ -49,25 +44,34 @@ void* malloc(uint32 size)
 		current_free_pages++;
 		i++;
 	}
-	
-	current_free_pages += MAX_NUM_OF_PAGES - last_index;
 
+	// count last free pages
+	current_free_pages += MAX_NUM_OF_PAGES - unallocated_start;
 	if(current_free_pages >= num_of_pages && current_free_pages < min_fit_pages)
 	{
 		min_fit_index = MAX_NUM_OF_PAGES - current_free_pages;
 	}
+	// update last unallocated part
+	if(min_fit_index >= unallocated_start)
+		unallocated_start = min_fit_index + num_of_pages;
+	return min_fit_index;
+}
 
-	uint32 va = USER_HEAP_START + min_fit_index * PAGE_SIZE;
-
-	if(min_fit_index == -1)
-		return NULL;
-	else if(min_fit_index >= last_index)
-		last_index = min_fit_index + num_of_pages;
+void* malloc(uint32 size)
+{
+	//TODO[DONE] : Malloc User
+	size = ROUNDUP(size, PAGE_SIZE);
+	int num_of_pages = size / PAGE_SIZE;
 	
-	// cprintf("malloc: allocating %d pages: %d -> %d\n", num_of_pages, min_fit_index, min_fit_index + num_of_pages);
-
+	int index = -1;
+	if(sys_isUHeapPlacementStrategyBESTFIT())
+		index = best_fit(num_of_pages);
+	
+	if(index == -1)
+		return NULL;
+	uint32 va = USER_HEAP_START + index * PAGE_SIZE;
 	// allocate the pages
-	pages_allocated[min_fit_index] = num_of_pages;
+	pages_allocated[index] = num_of_pages;
 	sys_allocateMem(va, size);
 
 	return (uint32*)va;
@@ -87,8 +91,12 @@ void free(void* virtual_address)
 {
 	//TODO[DONE] : Free User
 	int index = ((uint32)virtual_address - USER_HEAP_START) / PAGE_SIZE;
-	if(index + pages_allocated[index] == last_index)
-		last_index = index;
+	
+	// update unallocated start
+	if(index + pages_allocated[index] == unallocated_start)
+		unallocated_start = index;
+	
+	// freeing
 	sys_freeMem((uint32)virtual_address, pages_allocated[index] * PAGE_SIZE);
 	pages_allocated[index] = 0;
 }
