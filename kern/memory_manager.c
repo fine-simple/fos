@@ -439,8 +439,8 @@ void removeVictimFromEachProcess()
 {
 	for (int i = 0; i < MAX_ENVS; i++)
 	{
-		//running processes are ready and blocked status (not sure if new too or not)
-		if (envs[i].env_status == ENV_READY || envs[i].env_status != ENV_BLOCKED)
+		//running processes are ready and blocked status
+		if (envs[i].env_status == ENV_READY || envs[i].env_status == ENV_BLOCKED)
 		{
 			struct WorkingSetElement *element = getVictimElement(&envs[i]);
 			LIST_INSERT_HEAD(&(envs[i].PageWorkingSetList), element);
