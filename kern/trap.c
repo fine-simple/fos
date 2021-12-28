@@ -311,7 +311,7 @@ void trap(struct Trapframe *tf)
 //2020
 void setPageReplacmentAlgorithmLRU(int LRU_TYPE)
 {
-	assert(LRU_TYPE == PG_REP_LRU_TIME_APPROX || LRU_TYPE == PG_REP_LRU_LISTS_APPROX);
+	assert(LRU_TYPE == PG_REP_LRU_TIME_APPROX || LRU_TYPE == PG_REP_LRU_LISTS_APPROX || LRU_TYPE == PG_REP_LRU_LISTS_APPROX_O1);
 	_PageRepAlgoType = LRU_TYPE ;
 }
 void setPageReplacmentAlgorithmCLOCK(){_PageRepAlgoType = PG_REP_CLOCK;}
@@ -366,7 +366,7 @@ void detect_modified_loop()
 
 void print_page_working_set_or_LRUlists(struct Env *e)
 {
-	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 	{
 		int i = 0;
 		cprintf("ActiveList:\n============\n") ;
@@ -477,7 +477,8 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 //Handle the page fault
 
 //// HELPERS ///
-void* findInSecondChance(struct Env* e, uint32 va);
+void PFH(struct Env * curenv, uint32 fault_va, bool o_1);
+void* findInSecondChance(struct Env* e, uint32 va, bool o_1);
 void addElementToLists(struct Env* e, uint32 va);
 void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element);
 bool workingSetIsEmpty(struct Env* e);
@@ -500,15 +501,33 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 {
 
 	//TODO: [PROJECT 2021 - BONUS4] Change WS Size according to “Program Priority”
-	//priorityManager(curenv);
+	priorityManager(curenv);
 
 	//TODO: [DONE]  [PROJECT 2021 - [1] PAGE FAULT HANDLER]
 	// Write your code here, remove the panic and write your code
+	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	{
+		//O(N)pagefaulthandlercode
+		PFH(curenv, fault_va, 0);
+	}
+	else if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
+	{
+		//O(1)pagefaulthandlercode
+		PFH(curenv, fault_va, 1);
+	}
+
+	//TODO: [DONE] [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
+
+
+
+}
+
+void PFH(struct Env * curenv, uint32 fault_va, bool o_1)
+{
+
 	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 
-
-	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va);
-
+	struct WorkingSetElement *element = (struct WorkingSetElement*) findInSecondChance(curenv, fault_va, o_1);
 
 	if (element != NULL)// if found in second chance list
 	{
@@ -556,28 +575,36 @@ void page_fault_handler(struct Env * curenv, uint32 fault_va)
 
 	pt_set_page_permissions(curenv, fault_va, PERM_USER | PERM_PRESENT | PERM_WRITEABLE, 0);
 
-
-	//TODO: [PROJECT 2021 - BONUS3] O(1) Implementation of Fault Handler
-
-
-
 }
-
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {
 	panic("this function is not required...!!");
 }
 
-void* findInSecondChance(struct Env* e, uint32 va)
+void* findInSecondChance(struct Env* e, uint32 va, bool o_1)
 {
-	struct WorkingSetElement *currentElement;
-	LIST_FOREACH(currentElement,&(e->SecondList))
+	if(o_1)
 	{
-		if (currentElement->virtual_address == va)
+		struct WorkingSetElement *currentElement;
+		LIST_FOREACH(currentElement,&(e->SecondList))
 		{
-			return currentElement;
+				if (currentElement->virtual_address == va)
+				{
+					return currentElement;
+				}
 		}
+		return NULL;
+	}
+	uint32 *ptr_page_table = NULL;
+	struct Frame_Info *frame = get_frame_info(e->env_page_directory,(void*)va, &ptr_page_table);
+	if(frame==NULL)
+		return NULL;
+
+	uint32 perms = pt_get_page_permissions(e, va);
+	if(!(perms&PERM_PRESENT))
+	{
+		return frame->element;
 	}
 	return NULL;
 }
@@ -613,7 +640,9 @@ void addElementToLists(struct Env* e, uint32 va)
 			moveActiveListElementToSecondList(e);
 		LIST_INSERT_HEAD(&(e->ActiveList), element);
 	}
-
+	uint32* pt = NULL;
+	struct Frame_Info *fi = get_frame_info(e->env_page_directory, (void*)va, &pt);
+	fi->element = element;
 
 }
 
@@ -622,24 +651,19 @@ void saveWsElementToPageFile(struct Env* e, struct WorkingSetElement *element)
 	uint32 va = element->virtual_address;
 	uint32 perms = pt_get_page_permissions(e, va);
 	bool modified = (PERM_MODIFIED&perms);
-	if(!modified)
-	{
-		unmap_frame(e->env_page_directory, (uint32*) va);
-		return;
-	}
 	uint32 *ptr_page_table;
 	struct Frame_Info *ptr_frame_info = get_frame_info(e->env_page_directory, (void*)va, &ptr_page_table);
-	int success = pf_update_env_page(e, (void *)va, ptr_frame_info);
-	if(success != 0)
-		panic("Page to be updated doesn't exist in Page File");
+	if(modified)
+	{
+		int success = pf_update_env_page(e, (void *)va, ptr_frame_info);
+		if(success != 0)
+			panic("Page to be updated doesn't exist in Page File");
+	}
 
+	ptr_frame_info->element = NULL;
 	unmap_frame(e->env_page_directory, (uint32*) va);
 }
 
-bool workingSetIsEmpty(struct Env* e)
-{
-	return LIST_SIZE(&(e->PageWorkingSetList)) == 0;
-}
 
 bool activeListIsFull(struct Env* e)
 {
@@ -651,6 +675,10 @@ bool secondListIsFull(struct Env* e)
 	return LIST_SIZE(&(e->SecondList)) == e->SecondListSize;
 }
 
+bool workingSetIsEmpty(struct Env* e)
+{
+	return activeListIsFull(e) && secondListIsFull(e);
+}
 // Only removes element from second list, doesn't update active list
 void* getVictimElement(struct Env* e)
 {
@@ -662,11 +690,10 @@ void* getVictimElement(struct Env* e)
 
 	struct WorkingSetElement *victimElement = LIST_LAST(list);
 
+
 	saveWsElementToPageFile(e, victimElement);
-
 	LIST_REMOVE(list, victimElement);
-
-	pt_set_page_permissions(curenv, victimElement->virtual_address, 0, PERM_PRESENT);
+	pt_set_page_permissions(e, victimElement->virtual_address, 0, PERM_PRESENT);
 
 	return victimElement;
 }
@@ -685,98 +712,186 @@ void moveActiveListElementToSecondList(struct Env* e)
 // ===============================================//
 // ============== PRIORITY MANAGER ===============//
 // ===============================================//
-//void setPriorityBelowNormal(struct Env *env);
-//void setPriorityAboveNormal(struct Env *env);
-//void setPriorityHigh(struct Env *env);
-//bool halfWsIsEmpty(struct Env *env);
-//void resizeLRU(struct Env *env, int newActiveSize, int newSecondSize);
-//void updateListsSizes(struct Env *env, int newActiveSize, int newSecondSize);
-//
-//
-//void priorityManager(struct Env *env)
-//{
-//	switch(env->priority)
-//		{
-//		case PRIORITY_LOW:
-//			break;
-//		case PRIORITY_BELOWNORMAL:
-//			if (env->isWSChanged && halfWsIsEmpty(env))
-//			{
-//				setPriorityBelowNormal(env);
-//				env->isWSChanged = 0;
-//			}
-//			break;
-//		case PRIORITY_NORMAL:
-//			break;
-//		case PRIORITY_ABOVENORMAL:
-//			if (env->isWSChanged )
-//			{
-//				setPriorityAboveNormal(env);
-//				env->isWSChanged = 0;
-//			}
-//			break;
-//		case PRIORITY_HIGH:
-//			setPriorityHigh(env);
-//			break;
-//		}
-//
-//}
-//
-//
-//void setPriorityBelowNormal(struct Env *env)
-//{
-//	//FIXME: probably will need further thinking
-//	int newActiveSize = ROUNDUP(env->ActiveListSize / 2, 2);
-//	int newSecondSize = ROUNDUP(env->SecondListSize / 2, 2);
-//
-//	resizeLRU(env, newActiveSize, newSecondSize);
-//
-//}
-//
-//void setPriorityAboveNormal(struct Env *env)
-//{
-//	updateListsSizes(env, env->ActiveListSize * 2, env->SecondListSize * 2);
-//}
-//
-//void setPriorityHigh(struct Env *env)
-//{
-//	uint32 Giga =  1024 * 1024 * 1024;
-//	if (env->page_WS_max_size * PAGE_SIZE < 2 * Giga)
-//	{
-//		updateListsSizes(env, env->ActiveListSize * 2, env->SecondListSize * 2);
-//	}
-//}
-//
-//////////// PRIORITY HELPERS ///////////
-//void resizeLRU(struct Env *env, int newActiveSize, int newSecondSize)
-//{
-//	//remove last half of second list
-//		while(LIST_SIZE(&env->SecondList) > newSecondSize)
-//			getVictimElement(env);
-//
-//		// move half of elements of active list to second list
-//		while(LIST_SIZE(&env->ActiveList) > newActiveSize)
-//		{
-//			//if second is full remove a victim
-//			if(LIST_SIZE(&env->SecondList) == newSecondSize)
-//				getVictimElement(env);
-//
-//			moveActiveListElementToSecondList(env);
-//		}
-//
-//	updateListsSizes(env, newActiveSize, newSecondSize);
-//}
-//
-//void updateListsSizes(struct Env *env, int newActiveSize, int newSecondSize)
-//{
-//	env->ActiveListSize = newActiveSize;
-//	env->SecondListSize = newSecondSize;
-//	env->page_WS_max_size = newActiveSize + newSecondSize;
-//}
-//
-//bool halfWSIsEmpty(struct Env *env)
-//{
-//	bool activeLessThanHalf =  (LIST_SIZE(&env->ActiveList) <= env->ActiveListSize / 2);
-//	bool secondLessThanHalf =  (LIST_SIZE(&env->SecondList) <= env->SecondListSize / 2);
-//	return activeLessThanHalf && secondLessThanHalf;
-//}
+void setPriorityLow(struct Env *e);
+void setPriorityBelowNormal(struct Env *env);
+void setPriorityNormal(struct Env *env);
+void setPriorityAboveNormal(struct Env *env);
+void setPriorityHigh(struct Env *env);
+
+bool halfWsIsEmpty(struct Env *env);
+bool workingSetIsFull(struct Env *env);
+void resizeLRUwithReplacement(struct Env *env, int newActiveSize, int newSecondSize);
+void updateListsSizes(struct Env *env, int newActiveSize, int newSecondSize);
+void freeWsElement(struct Env *env, struct WorkingSetElement *element);
+
+
+void priorityManager(struct Env *env)
+{
+	switch(env->priority)
+		{
+		case PRIORITY_LOW:
+			break;
+		case PRIORITY_BELOWNORMAL:
+			if (env->isWSChanged)
+				setPriorityBelowNormal(env);
+			break;
+		case PRIORITY_NORMAL:
+			break;
+		case PRIORITY_ABOVENORMAL:
+			if (env->isWSChanged)
+				setPriorityAboveNormal(env);
+			break;
+		case PRIORITY_HIGH:
+			setPriorityHigh(env);
+			break;
+		}
+
+}
+
+
+// =======APPLYING PRIORITY======//
+
+// Remove half ws immediately
+void setPriorityLow(struct Env *e)
+{
+	int newActiveSize = e->ActiveListSize / 2;
+	int newSecondSize = e->SecondListSize / 2;
+
+	resizeLRUwithReplacement(e, newActiveSize, newSecondSize);
+
+	e->isWSChanged = 0;
+	e->priority = PRIORITY_LOW;
+}
+
+
+// if half ws is empty remove immediately
+// else set flag for pfh to remove when empty
+void setPriorityBelowNormal(struct Env *env)
+{
+	if (halfWsIsEmpty(env))
+	{
+		int newActiveSize = env->ActiveListSize / 2;
+		int newSecondSize = env->SecondListSize / 2;
+
+		resizeLRUwithReplacement(env, newActiveSize, newSecondSize);
+
+		env->isWSChanged = 0;
+
+	}
+	else
+	{
+		env->isWSChanged = 1;
+	}
+	env->priority = PRIORITY_BELOWNORMAL;
+}
+
+// return everything to original sizes
+void setPriorityNormal(struct Env *env)
+{
+	int newActiveSize = env->originalActiveListSize;
+	int newSecondSize = env->originalSecondListSize;
+
+	if (env->priority > PRIORITY_NORMAL)
+		resizeLRUwithReplacement(env, newActiveSize, newSecondSize);
+
+	updateListsSizes(env, newActiveSize, newSecondSize);
+
+	env->priority = PRIORITY_NORMAL;
+}
+
+//if ws is full then double it
+//else it sets a flag for the pfh to check
+void setPriorityAboveNormal(struct Env *env)
+{
+	if (workingSetIsFull(env))
+	{
+		int newActiveSize = env->ActiveListSize * 2;
+		int newSecondSize = env->SecondListSize * 2;
+		updateListsSizes(env, newActiveSize, newSecondSize);
+
+		env->isWSChanged = 0;
+
+	}
+	else
+		env->isWSChanged = 1;
+
+	env->priority = PRIORITY_ABOVENORMAL;
+}
+
+// if ws is less than half ram, if so it doubles ws then sets flag
+// PFH doubles the ws each time until it's at max
+void setPriorityHigh(struct Env *env)
+{
+	if (env->page_WS_max_size * 2 <= __PWS_MAX_SIZE)
+	{
+		int newActiveSize = env->ActiveListSize * 2;
+		int newSecondSize = env->SecondListSize * 2;
+		updateListsSizes(env, newActiveSize, newSecondSize);
+	}
+
+	env->priority = PRIORITY_HIGH;
+}
+
+///////////////////////////////////////
+////////// PRIORITY HELPERS ///////////
+///////////////////////////////////////
+void resizeLRUwithReplacement(struct Env *env, int newActiveSize, int newSecondSize)
+{
+
+	//remove last half of second list
+	while(LIST_SIZE(&env->SecondList) > newSecondSize)
+	{
+		LOG("I Shouldn't be here%c\n", tmp[0])
+		struct WorkingSetElement *removedElement = getVictimElement(env);
+		freeWsElement(env, removedElement);
+
+	}
+
+	// move half of elements of active list to second list
+	cprintf("Active now : %d , Active max size : %d,shrinking to -> %d\n", LIST_SIZE(&env->ActiveList), env->ActiveListSize,newActiveSize);
+	while(LIST_SIZE(&env->ActiveList) > newActiveSize)
+	{
+		//if second is full remove a victim
+		if(LIST_SIZE(&env->SecondList) == newSecondSize)
+		{
+			struct WorkingSetElement *removedElement = getVictimElement(env);
+			freeWsElement(env, removedElement);
+		}
+
+		if (env->SecondListSize != 0)
+		{
+			moveActiveListElementToSecondList(env);
+		}
+
+	}
+
+	updateListsSizes(env, newActiveSize, newSecondSize);
+}
+
+void updateListsSizes(struct Env *env, int newActiveSize, int newSecondSize)
+{
+	env->ActiveListSize = newActiveSize;
+	env->SecondListSize = newSecondSize;
+	env->page_WS_max_size = newActiveSize + newSecondSize;
+
+}
+
+bool halfWsIsEmpty(struct Env *env)
+{
+	bool activeLessThanHalf =  (LIST_SIZE(&env->ActiveList) <= env->ActiveListSize / 2);
+	bool secondLessThanHalf =  (LIST_SIZE(&env->SecondList) <= env->SecondListSize / 2);
+	return activeLessThanHalf && secondLessThanHalf;
+}
+
+bool workingSetIsFull(struct Env *env)
+{
+	return activeListIsFull(env) && secondListIsFull(env);
+}
+
+
+void freeWsElement(struct Env *env, struct WorkingSetElement *element)
+{
+	element->empty = 1;
+	LIST_INSERT_HEAD(&(env->PageWorkingSetList), element);
+}
+

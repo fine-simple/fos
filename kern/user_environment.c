@@ -19,7 +19,6 @@
 #include <kern/shared_memory_manager.h>
 #include <kern/semaphore_manager.h>
 
-
 extern int pf_add_env_page(struct Env* ptr_env, uint32 virtual_address, void* ptrDataSrc);
 extern int loadtime_map_frame(uint32 *ptr_page_directory, struct Frame_Info *ptr_frame_info, void *virtual_address, int perm);
 extern void addTableToTableWorkingSet(struct Env *e, uint32 tableAddress);
@@ -312,7 +311,7 @@ void initialize_environment(struct Env* e, uint32* ptr_user_page_directory
 
 	//2020
 	// Add its elements to the "e->PageWorkingSetList"
-	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 	{
 		for (int i = 0; i < e->page_WS_max_size; ++i)
 		{
@@ -406,18 +405,24 @@ static int program_segment_alloc_map_copy_workingset(struct Env *e, struct Progr
 		e->ptr_pageWorkingSet[e->page_last_WS_index].empty = 0;
 
 		//2020
-		if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+		if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 		{
 			LIST_REMOVE(&(e->PageWorkingSetList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
 			//Always leave 1 page in Active list for the stack
 			if (LIST_SIZE(&(e->ActiveList)) < e->ActiveListSize - 1)
 			{
 				LIST_INSERT_HEAD(&(e->ActiveList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+				uint32* pt = NULL;
+				struct Frame_Info *fi = get_frame_info(e->env_page_directory, (void*)LIST_FIRST(&(e->ActiveList))->virtual_address, &pt);
+				fi->element = LIST_FIRST(&(e->ActiveList));
 			}
 			else
 			{
 				//Add to LRU Second list
 				LIST_INSERT_HEAD(&(e->SecondList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+				uint32* pt = NULL;
+				struct Frame_Info *fi = get_frame_info(e->env_page_directory, (void*)LIST_FIRST(&(e->SecondList))->virtual_address, &pt);
+				fi->element = LIST_FIRST(&(e->SecondList));
 			}
 		}
 		//=======================
@@ -538,7 +543,7 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 	e->page_WS_max_size = page_WS_size;
 
 	//2020
-	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 	{
 		e->SecondListSize = LRU_second_list_size;
 		e->ActiveListSize = page_WS_size - LRU_second_list_size;
@@ -704,7 +709,7 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 			env_page_ws_set_entry(e, e->page_last_WS_index, (uint32) stackVa) ;
 
 			//2020
-			if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+			if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 			{
 				LIST_REMOVE(&(e->PageWorkingSetList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
 				//Now: we are sure that at least the top page in the stack will be added to Active list
@@ -712,10 +717,12 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 				if (LIST_SIZE(&(e->ActiveList)) < e->ActiveListSize)
 				{
 					LIST_INSERT_HEAD(&(e->ActiveList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+					pp->element = LIST_FIRST(&(e->ActiveList));
 				}
 				else
 				{
 					LIST_INSERT_HEAD(&(e->SecondList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
+					pp->element = LIST_FIRST(&(e->SecondList));
 				}
 			}
 			e->page_last_WS_index ++;
@@ -731,7 +738,7 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 
 	//2020
 	//LRU Lists: Reset PRESENT bit of all pages in Second List
-	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+	if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX) || isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX_O1))
 	{
 		struct WorkingSetElement * elm = NULL;
 		LIST_FOREACH(elm, &(e->SecondList))
@@ -831,12 +838,13 @@ void freeWSPages(struct Env *e ,struct WS_List* list){
 	LIST_FOREACH(element, list)
 	{
 		struct Frame_Info* fi = NULL;
-			uint32* pt = NULL;
-			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
-			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
-			// [2] Free LRU lists
-			LIST_REMOVE(list, element);
-			LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
+		uint32* pt = NULL;
+		fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+		unmap_frame(e->env_page_directory, (void*)element->virtual_address);
+		fi->element = NULL;
+		// [2] Free LRU lists
+		LIST_REMOVE(list, element);
+		LIST_INSERT_HEAD(&(e->PageWorkingSetList), element);
 	}
 }
 
@@ -844,23 +852,6 @@ char tmp[2];
 #define ENABLE_DEBUG 0
 #define LOG(text, vars) if(ENABLE_DEBUG){cprintf(text, vars);}
 #define PAUSE readline("continue?", tmp);
-
-/*****  PERFORMANCE CATASTROPHY ******/
-bool isInFreeList(struct Frame_Info* frame)
-{
-	struct Frame_Info* tmp;
-	LIST_FOREACH(tmp, &free_frame_list)
-	{
-		if (tmp == frame)
-		{
-			cprintf("FOUND IN FREE FRAME LIST!!! phys addr : %x\n", to_physical_address(tmp));
-			return 1;
-
-		}
-	}
-	return 0;
-}
-
 void env_free(struct Env *e)
 {
 	//TODO: [DONE] [PROJECT 2021 - BONUS1] Exit [env_free()]

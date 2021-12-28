@@ -206,6 +206,8 @@ struct Frame_Info {
 	uint32 va;
 	struct Env *environment;
 	unsigned char isBuffered;
+	// PFH O(1)
+	struct WorkingSetElement *element;
 };
 
 #endif /* !__ASSEMBLER__ */

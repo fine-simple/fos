@@ -439,8 +439,8 @@ void removeVictimFromEachProcess()
 {
 	for (int i = 0; i < MAX_ENVS; i++)
 	{
-		//running processes are ready and blocked status (not sure if new too or not)
-		if (envs[i].env_status == ENV_READY || envs[i].env_status != ENV_BLOCKED)
+		//running processes are ready and blocked status
+		if (envs[i].env_status == ENV_READY || envs[i].env_status == ENV_BLOCKED)
 		{
 			struct WorkingSetElement *element = getVictimElement(&envs[i]);
 			LIST_INSERT_HEAD(&(envs[i].PageWorkingSetList), element);
@@ -859,6 +859,7 @@ void freePagesInList(struct Env* e, uint32 startAddress, uint32 endAddress, stru
 			struct Frame_Info* fi = NULL;
 			uint32* pt = NULL;
 			fi = get_frame_info(e->env_page_directory, (void*)element->virtual_address, &pt);
+			fi->element = NULL;
 			unmap_frame(e->env_page_directory, (void*)element->virtual_address);
 
 
