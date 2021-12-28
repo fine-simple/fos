@@ -25,7 +25,6 @@ char tmp[2];
 
 
 // PRIORITY MANAGEMENT HELPERS ////
-void changeLRUToPriority(struct Env *e, int priority);
 void resizeLRUwithReplacement(struct Env *env, int newActiveSize, int newSecondSize);
 void updateListsSizes(struct Env* env,int newActiveSize, int newSecondSize);
 bool halfWsIsEmpty(struct Env *env);

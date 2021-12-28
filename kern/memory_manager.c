@@ -417,7 +417,7 @@ void initialize_frame_info(struct Frame_Info *ptr_frame_info)
 extern void env_free(struct Env *e);
 
 //////// HELPERS ////////////
-int MAX_ENVS = 12; //said in the start of fos
+int MAX_ENVS = NENV;
 
 // returns true if exited envs found
 bool removeExitedEnvs()
@@ -443,6 +443,7 @@ void removeVictimFromEachProcess()
 		if (envs[i].env_status == ENV_READY || envs[i].env_status == ENV_BLOCKED)
 		{
 			struct WorkingSetElement *element = getVictimElement(&envs[i]);
+			element->empty = 1;
 			LIST_INSERT_HEAD(&(envs[i].PageWorkingSetList), element);
 		}
 	}

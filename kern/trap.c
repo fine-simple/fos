@@ -568,7 +568,7 @@ void PFH(struct Env * curenv, uint32 fault_va, bool o_1)
 			}
 			else
 			{
-				panic("Page not found in Page File");
+				panic("Invalid Access");
 			}
 		}
 	}
@@ -841,14 +841,12 @@ void resizeLRUwithReplacement(struct Env *env, int newActiveSize, int newSecondS
 	//remove last half of second list
 	while(LIST_SIZE(&env->SecondList) > newSecondSize)
 	{
-		LOG("I Shouldn't be here%c\n", tmp[0])
 		struct WorkingSetElement *removedElement = getVictimElement(env);
 		freeWsElement(env, removedElement);
 
 	}
 
 	// move half of elements of active list to second list
-	cprintf("Active now : %d , Active max size : %d,shrinking to -> %d\n", LIST_SIZE(&env->ActiveList), env->ActiveListSize,newActiveSize);
 	while(LIST_SIZE(&env->ActiveList) > newActiveSize)
 	{
 		//if second is full remove a victim
